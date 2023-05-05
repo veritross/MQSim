@@ -4,6 +4,7 @@
 #include <list>
 #include <queue>
 #include <unordered_map>
+#include <algorithm>
 #include "../nvm_chip/flash_memory/FlashTypes.h"
 #include "SSD_Defs.h"
 #include "Data_Cache_Manager_Base.h"
@@ -20,6 +21,8 @@ namespace SSD_Components
 		data_timestamp_type Timestamp;
 		Cache_Slot_Status Status;
 		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>::iterator lru_list_ptr;//used for fast implementation of LRU
+		std::list<std::list<Data_Cache_Slot_Type*>*>::iterator lfu_list_ptr;
+		int accessCount;
 	};
 
 	enum class Data_Cache_Simulation_Event_Type {
@@ -55,10 +58,14 @@ namespace SSD_Components
 		void Insert_read_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_read_sectors);
 		void Insert_write_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors);
 		void Update_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors);
+		void LFU_Increase_access_count(Data_Cache_Slot_Type* slot);
+		void LFU_Insert_Data(Data_Cache_Slot_Type* slot);
 	private:
 		std::unordered_map<LPA_type, Data_Cache_Slot_Type*> slots;
 		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>> lru_list;
+		std::list<std::list<Data_Cache_Slot_Type*>*> lfu_list;
 		unsigned int capacity_in_pages;
+		bool LFU;
 	};
 }
 
