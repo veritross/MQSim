@@ -4,8 +4,8 @@
 
 namespace SSD_Components
 {
-	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages) : capacity_in_pages(capacity_in_pages) {
-		LFU = false;
+	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages, bool LFU) : capacity_in_pages(capacity_in_pages), LFU(LFU) {
+		std::cout << (LFU ? "Data Cache Runs with LFU policy" : "Data Cache Runs with LRU Policy") << std::endl;
 	}
 	bool Data_Cache_Flash::Exists(const stream_id_type stream_id, const LPA_type lpn)
 	{

@@ -43,7 +43,7 @@ namespace SSD_Components
 	class Data_Cache_Flash
 	{
 	public:
-		Data_Cache_Flash(unsigned int capacity_in_pages = 0);
+		Data_Cache_Flash(unsigned int capacity_in_pages = 0, bool LFU = false);
 		~Data_Cache_Flash();
 		bool Exists(const stream_id_type streamID, const LPA_type lpn);
 		bool Check_free_slot_availability();

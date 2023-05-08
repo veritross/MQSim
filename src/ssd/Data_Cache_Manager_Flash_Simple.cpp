@@ -10,12 +10,12 @@ namespace SSD_Components
 	Data_Cache_Manager_Flash_Simple::Data_Cache_Manager_Flash_Simple(const sim_object_id_type& id, Host_Interface_Base* host_interface, NVM_Firmware* firmware, NVM_PHY_ONFI* flash_controller,
 		unsigned int total_capacity_in_bytes,
 		unsigned int dram_row_size, unsigned int dram_data_rate, unsigned int dram_busrt_size, sim_time_type dram_tRCD, sim_time_type dram_tCL, sim_time_type dram_tRP,
-		Caching_Mode* caching_mode_per_input_stream, unsigned int stream_count, unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth)
-		: Data_Cache_Manager_Base(id, host_interface, firmware, dram_row_size, dram_data_rate, dram_busrt_size, dram_tRCD, dram_tCL, dram_tRP, caching_mode_per_input_stream, Cache_Sharing_Mode::SHARED, stream_count),
+		Caching_Mode* caching_mode_per_input_stream, unsigned int stream_count, unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, bool LFU)
+		: Data_Cache_Manager_Base(id, host_interface, firmware, dram_row_size, dram_data_rate, dram_busrt_size, dram_tRCD, dram_tCL, dram_tRP, caching_mode_per_input_stream, Cache_Sharing_Mode::SHARED, stream_count, LFU),
 		flash_controller(flash_controller), capacity_in_bytes(total_capacity_in_bytes), sector_no_per_page(sector_no_per_page),	request_queue_turn(0), back_pressure_buffer_max_depth(back_pressure_buffer_max_depth)
 	{
 		capacity_in_pages = capacity_in_bytes / (SECTOR_SIZE_IN_BYTE * sector_no_per_page);
-		data_cache = new Data_Cache_Flash(capacity_in_pages);
+		data_cache = new Data_Cache_Flash(capacity_in_pages, LFU);
 		dram_execution_queue = new std::queue<Memory_Transfer_Info*>[stream_count];
 		waiting_user_requests_queue_for_dram_free_slot = new std::list<User_Request*>[stream_count];
 		this->back_pressure_buffer_depth = 0;

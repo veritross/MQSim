@@ -22,7 +22,7 @@
 				 <Seed>12344</Seed>
 				 <Average_No_of_Reqs_in_Queue>16</Average_No_of_Reqs_in_Queue>
 				 <Bandwidth>262144</Bandwidth>
-				 <Stop_Time>100000000000</Stop_Time>
+				 <Stop_Time>1000000000</Stop_Time>
 				 <Total_Requests_To_Generate>0</Total_Requests_To_Generate>
 		</IO_Flow_Parameter_Set_Synthetic>
 		<IO_Flow_Parameter_Set_Synthetic>
@@ -46,7 +46,7 @@
 				 <Seed>6533</Seed>
 				 <Average_No_of_Reqs_in_Queue>16</Average_No_of_Reqs_in_Queue>
 				 <Bandwidth>131072</Bandwidth>
-				 <Stop_Time>100000000000</Stop_Time>
+				 <Stop_Time>1000000000</Stop_Time>
 				 <Total_Requests_To_Generate>0</Total_Requests_To_Generate>
 		</IO_Flow_Parameter_Set_Synthetic>
 	</IO_Scenario>
