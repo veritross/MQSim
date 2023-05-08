@@ -454,13 +454,13 @@ namespace SSD_Components
 		if (domains[stream_id]->CMT->Check_free_slot_availability()) {
 			domains[stream_id]->CMT->Reserve_slot_for_lpn(stream_id, lpa);
 			domains[stream_id]->CMT->Insert_new_mapping_info(stream_id, lpa,
-				domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
+			domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
 		} else {
 			LPA_type evicted_lpa;
 			domains[stream_id]->CMT->Evict_one_slot(evicted_lpa);
 			domains[stream_id]->CMT->Reserve_slot_for_lpn(stream_id, lpa);
 			domains[stream_id]->CMT->Insert_new_mapping_info(stream_id, lpa,
-				domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
+			domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
 		}
 		domains[stream_id]->No_of_inserted_entries_in_preconditioning++;
 		

@@ -320,7 +320,6 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 		{
 			caching_modes[i] = (*io_flows)[i]->Device_Level_Data_Caching_Mode;
 		}
-
 		switch (parameters->Caching_Mechanism)
 		{
 		case SSD_Components::Caching_Mechanism::SIMPLE:
