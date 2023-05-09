@@ -5,6 +5,7 @@
 namespace SSD_Components
 {
 	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages, bool LFU) : capacity_in_pages(capacity_in_pages), LFU(LFU) {
+		read_cache_bound = 4;
 		std::cout << (LFU ? "Data Cache Runs with LFU policy" : "Data Cache Runs with LRU Policy") << std::endl;
 	}
 	bool Data_Cache_Flash::Exists(const stream_id_type stream_id, const LPA_type lpn)
@@ -152,6 +153,8 @@ namespace SSD_Components
 			cache_slot->lru_list_ptr = lru_list.begin();
 		}
 		slots[key] = cache_slot;
+		RC_Remove_Data(stream_id, lpn);
+
 	}
 
 	void Data_Cache_Flash::Insert_write_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content,
@@ -181,6 +184,7 @@ namespace SSD_Components
 			cache_slot->lru_list_ptr = lru_list.begin();
 		}
 		slots[key] = cache_slot;
+		RC_Remove_Data(stream_id, lpn);
 	}
 
 	void Data_Cache_Flash::Update_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content,
@@ -254,6 +258,35 @@ namespace SSD_Components
 		if(LFU_list_of_slot->size() == 0){
 			lfu_list.erase(slot->lfu_list_ptr);
 		}
+    }
+
+    void Data_Cache_Flash::RC_Increase_acces_count(const stream_id_type stream_id, const LPA_type lpn)
+    {
+		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
+		auto it = read_count.find(key);
+		if(it == read_count.end()){
+			(*it).second = 1;
+		}else{
+			(*it).second++;
+		}
+    }
+
+	//This function is executed when data that has parameter insert to cache.
+    void Data_Cache_Flash::RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn)
+    {
+		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
+		auto it = read_count.find(key);
+		assert(it != read_count.end());
+		read_count.erase(it);
+    }
+
+	//return this data should caching or not.
+    bool Data_Cache_Flash::RC_Compare_Data(const stream_id_type stream_id, const LPA_type lpn)
+    {
+		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
+		auto it = read_count.find(key);
+		assert(it != read_count.end());
+		return (*it).second >= read_cache_bound;
     }
 
     void Data_Cache_Flash::Remove_slot(const stream_id_type stream_id, const LPA_type lpn)
