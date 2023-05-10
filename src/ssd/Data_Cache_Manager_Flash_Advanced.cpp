@@ -11,7 +11,7 @@ namespace SSD_Components
 		unsigned int total_capacity_in_bytes,
 		unsigned int dram_row_size, unsigned int dram_data_rate, unsigned int dram_busrt_size, sim_time_type dram_tRCD, sim_time_type dram_tCL, sim_time_type dram_tRP,
 		Caching_Mode* caching_mode_per_input_stream, Cache_Sharing_Mode sharing_mode,unsigned int stream_count,
-		unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, bool LFU)
+		unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, bool LFU, unsigned int read_cache_bound)
 		: Data_Cache_Manager_Base(id, host_interface, firmware, dram_row_size, dram_data_rate, dram_busrt_size, dram_tRCD, dram_tCL, dram_tRP, caching_mode_per_input_stream, sharing_mode, stream_count, LFU),
 		flash_controller(flash_controller), capacity_in_bytes(total_capacity_in_bytes), sector_no_per_page(sector_no_per_page),	memory_channel_is_busy(false),
 		dram_execution_list_turn(0), back_pressure_buffer_max_depth(back_pressure_buffer_max_depth)
@@ -21,7 +21,7 @@ namespace SSD_Components
 		{
 			case SSD_Components::Cache_Sharing_Mode::SHARED:
 			{
-				Data_Cache_Flash* sharedCache = new Data_Cache_Flash(capacity_in_pages, LFU);
+				Data_Cache_Flash* sharedCache = new Data_Cache_Flash(capacity_in_pages, LFU, read_cache_bound);
 				per_stream_cache = new Data_Cache_Flash*[stream_count];
 				for (unsigned int i = 0; i < stream_count; i++) {
 					per_stream_cache[i] = sharedCache;
@@ -36,7 +36,7 @@ namespace SSD_Components
 			case SSD_Components::Cache_Sharing_Mode::EQUAL_PARTITIONING:
 				per_stream_cache = new Data_Cache_Flash*[stream_count];
 				for (unsigned int i = 0; i < stream_count; i++) {
-					per_stream_cache[i] = new Data_Cache_Flash(capacity_in_pages / stream_count, LFU);
+					per_stream_cache[i] = new Data_Cache_Flash(capacity_in_pages / stream_count, LFU, read_cache_bound);
 				}
 				dram_execution_queue = new std::queue<Memory_Transfer_Info*>[stream_count];
 				waiting_user_requests_queue_for_dram_free_slot = new std::list<User_Request*>[stream_count];
@@ -204,6 +204,11 @@ namespace SSD_Components
 					while (it != user_request->Transaction_list.end()) {
 						NVM_Transaction_Flash_RD* tr = (NVM_Transaction_Flash_RD*)(*it);
 						if (per_stream_cache[tr->Stream_id]->Exists(tr->Stream_id, tr->LPA)) {
+							if(per_stream_cache[tr->Stream_id]->read_hit_count.find(tr->LPA) == per_stream_cache[tr->Stream_id]->read_hit_count.end()){
+								per_stream_cache[tr->Stream_id]->read_hit_count.insert(std::pair<LPA_type, int>(tr->LPA, 1));
+							}else{
+								per_stream_cache[tr->Stream_id]->read_hit_count[tr->LPA]++;
+							}
 							page_status_type available_sectors_bitmap = per_stream_cache[tr->Stream_id]->Get_slot(tr->Stream_id, tr->LPA).State_bitmap_of_existing_sectors & tr->read_sectors_bitmap;
 							if (available_sectors_bitmap == tr->read_sectors_bitmap) {
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(tr->read_sectors_bitmap);
@@ -358,7 +363,6 @@ namespace SSD_Components
 		if (transaction->Source != Transaction_Source_Type::USERIO && transaction->Source != Transaction_Source_Type::CACHE) {
 			return;
 		}
-
 		if (transaction->Source == Transaction_Source_Type::USERIO) {
 			_my_instance->broadcast_user_memory_transaction_serviced_signal(transaction);
 		}

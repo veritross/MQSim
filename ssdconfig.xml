@@ -15,15 +15,16 @@
 			 <IO_Queue_Depth>1024</IO_Queue_Depth>
 			 <Queue_Fetch_Size>512</Queue_Fetch_Size>
 			 <Caching_Mechanism>ADVANCED</Caching_Mechanism>
-			 <Data_Cache_Sharing_Mode>SHARED</Data_Cache_Sharing_Mode>
+			 <Data_Cache_Sharing_Mode>EQUAL_PARTITIONING</Data_Cache_Sharing_Mode>
 			 <Data_Cache_Capacity>524288</Data_Cache_Capacity>
 			 <Data_Cache_DRAM_Row_Size>8192</Data_Cache_DRAM_Row_Size>
 			 <Data_Cache_DRAM_Data_Rate>800</Data_Cache_DRAM_Data_Rate>
-			 <Data_Cache_DRAM_Data_Busrt_Size>4</Data_Cache_DRAM_Data_Busrt_Size>
+			 <Data_Cache_DRAM_Data_Busrt_Size>13</Data_Cache_DRAM_Data_Busrt_Size>
 			 <Data_Cache_DRAM_tRCD>13</Data_Cache_DRAM_tRCD>
 			 <Data_Cache_DRAM_tCL>13</Data_Cache_DRAM_tCL>
 			 <Data_Cache_DRAM_tRP>13</Data_Cache_DRAM_tRP>
 			 <Data_Cache_Evict_Policy>LRU</Data_Cache_Evict_Policy>
+			 <Read_Cache_Bound>0</Read_Cache_Bound>
 			 <Address_Mapping>PAGE_LEVEL</Address_Mapping>
 			 <Ideal_Mapping_Table>false</Ideal_Mapping_Table>
 			 <CMT_Capacity>2097152</CMT_Capacity>

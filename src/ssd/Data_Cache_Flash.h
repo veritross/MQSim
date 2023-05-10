@@ -43,7 +43,7 @@ namespace SSD_Components
 	class Data_Cache_Flash
 	{
 	public:
-		Data_Cache_Flash(unsigned int capacity_in_pages = 0, bool LFU = false);
+		Data_Cache_Flash(unsigned int capacity_in_pages = 0, bool LFU = false, unsigned int read_cache_bound = 0);
 		~Data_Cache_Flash();
 		bool Exists(const stream_id_type streamID, const LPA_type lpn);
 		bool Check_free_slot_availability();
@@ -64,12 +64,13 @@ namespace SSD_Components
 		void RC_Increase_acces_count(const stream_id_type stream_id, const LPA_type lpn);
 		void RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn);
 		bool RC_Compare_Data(const stream_id_type stream_id, const LPA_type lpn);
+		std::unordered_map<LPA_type, int> read_hit_count;
 	private:
 		std::unordered_map<LPA_type, Data_Cache_Slot_Type*> slots;
 		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>> lru_list;
 		std::list<std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>*> lfu_list;
 		std::unordered_map<LPA_type, int> read_count;
-		unsigned long long read_cache_bound;
+		const unsigned int read_cache_bound;
 		unsigned int capacity_in_pages;
 		bool LFU;
 	};

@@ -78,7 +78,6 @@ void IO_Flow_Trace_Based::Start_simulation()
 	IO_Flow_Base::Start_simulation();
 	std::string trace_line;
 	char *pEnd;
-
 	trace_file.open(trace_file_path, std::ios::in);
 	if (!trace_file.is_open())
 	{

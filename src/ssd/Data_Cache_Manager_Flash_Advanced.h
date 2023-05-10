@@ -33,7 +33,7 @@ namespace SSD_Components
 			unsigned int total_capacity_in_bytes,
 			unsigned int dram_row_size, unsigned int dram_data_rate, unsigned int dram_busrt_size, sim_time_type dram_tRCD, sim_time_type dram_tCL, sim_time_type dram_tRP,
 			Caching_Mode* caching_mode_per_input_stream, Cache_Sharing_Mode sharing_mode, 
-			unsigned int stream_count, unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, bool LFU);
+			unsigned int stream_count, unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, bool LFU, unsigned int read_cache_bound);
 		~Data_Cache_Manager_Flash_Advanced();
 		void Execute_simulator_event(MQSimEngine::Sim_Event* ev);
 		void Setup_triggers();
