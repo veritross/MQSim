@@ -26,11 +26,11 @@
 			 <Data_Cache_Evict_Policy>LRU</Data_Cache_Evict_Policy>
 			 <Read_Cache_Bound>0</Read_Cache_Bound>
 			 <Address_Mapping>PAGE_LEVEL</Address_Mapping>
-			 <Ideal_Mapping_Table>false</Ideal_Mapping_Table>
+			 <Ideal_Mapping_Table>true</Ideal_Mapping_Table>
 			 <CMT_Capacity>2097152</CMT_Capacity>
 			 <CMT_Sharing_Mode>SHARED</CMT_Sharing_Mode>
 			 <Plane_Allocation_Scheme>CWDP</Plane_Allocation_Scheme>
-			 <Transaction_Scheduling_Policy>OUT_OF_ORDER</Transaction_Scheduling_Policy>
+			 <Transaction_Scheduling_Policy>PRIORITY_OUT_OF_ORDER</Transaction_Scheduling_Policy>
 			 <Overprovisioning_Ratio>0.070000</Overprovisioning_Ratio>
 			 <GC_Exec_Threshold>0.050000</GC_Exec_Threshold>
 			 <GC_Block_Selection_Policy>RGA</GC_Block_Selection_Policy>
