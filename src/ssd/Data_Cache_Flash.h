@@ -61,16 +61,16 @@ namespace SSD_Components
 		void LFU_Increase_access_count(Data_Cache_Slot_Type* slot, LPA_type key);
 		void LFU_Insert_Data(Data_Cache_Slot_Type* slot, LPA_type key);
 		void LFU_Remove_Data(Data_Cache_Slot_Type* slot, LPA_type key);
-		void RC_Increase_acces_count(const stream_id_type stream_id, const LPA_type lpn);
+		void RC_Increase_access_count(const stream_id_type stream_id, const LPA_type lpn);
 		void RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn);
 		bool RC_Compare_Data(const stream_id_type stream_id, const LPA_type lpn);
-		std::unordered_map<LPA_type, int> read_hit_count;
 	private:
 		std::unordered_map<LPA_type, Data_Cache_Slot_Type*> slots;
 		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>> lru_list;
 		std::list<std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>*> lfu_list;
-		std::unordered_map<LPA_type, int> read_count;
-		const unsigned int read_cache_bound;
+		std::list<std::pair<LPA_type, int>> read_count;
+		const unsigned int RC_capacity_in_pages;
+		const unsigned int RC_bound;
 		unsigned int capacity_in_pages;
 		bool LFU;
 	};
