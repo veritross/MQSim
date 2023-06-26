@@ -19,7 +19,8 @@ sim_time_type Device_Parameter_Set::Data_Cache_DRAM_tRCD = 13;//tRCD parameter t
 sim_time_type Device_Parameter_Set::Data_Cache_DRAM_tCL = 13;//tCL parameter to access DRAM in the data cache, the unit is nano-seconds
 sim_time_type Device_Parameter_Set::Data_Cache_DRAM_tRP = 13;//tRP parameter to access DRAM in the data cache, the unit is nano-seconds
 bool Device_Parameter_Set::LFU = false;
-unsigned int Device_Parameter_Set::Read_Cache_Bound = 0;
+unsigned int Device_Parameter_Set::RC_Bound = 0;
+unsigned int Device_Parameter_Set::RC_Capacity = 8 * 1024;
 SSD_Components::Flash_Address_Mapping_Type Device_Parameter_Set::Address_Mapping = SSD_Components::Flash_Address_Mapping_Type::PAGE_LEVEL;
 bool Device_Parameter_Set::Ideal_Mapping_Table = false;//If mapping is ideal, then all the mapping entries are found in the DRAM and there is no need to read mapping entries from flash
 unsigned int Device_Parameter_Set::CMT_Capacity = 2 * 1024 * 1024;//Size of SRAM/DRAM space that is used to cache address mapping table in bytes
@@ -147,13 +148,16 @@ void Device_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 	val = std::to_string(Data_Cache_DRAM_tRP);
 	xmlwriter.Write_attribute_string(attr, val);
 
+	attr= "RC_Capacity";
+	val = std::to_string(RC_Capacity);
+	xmlwriter.Write_attribute_string(attr, val);
 
 	attr = "Data_Cache_Evict_Policy";
 	val = LFU ? "LFU" : "LRU";
 	xmlwriter.Write_attribute_string(attr, val);
 
-	attr = "Read_Cache_Bound";
-	val = std::to_string(Read_Cache_Bound);
+	attr = "RC_Bound";
+	val = std::to_string(RC_Bound);
 	xmlwriter.Write_attribute_string(attr, val);
 
 	attr = "Address_Mapping";
@@ -470,9 +474,12 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 				} 	else{
 					PRINT_ERROR("Unknown data cache evict policy in the SSD configuration file")
 				}
-			} else if(strcmp(param->name(), "Read_Cache_Bound") == 0){
+			} else if(strcmp(param->name(), "RC_Bound") == 0){
 				std::string val = param->value();
-				Read_Cache_Bound = std::stoul(val);
+				RC_Bound = std::stoul(val);
+			} else if(strcmp(param->name(), "RC_Capacity") == 0){
+				std::string val = param->value();
+				RC_Capacity = std::stoul(val);
 			} else if (strcmp(param->name(), "Address_Mapping") == 0) {
 				std::string val = param->value();
 				std::transform(val.begin(), val.end(), val.begin(), ::toupper);

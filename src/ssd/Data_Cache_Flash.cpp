@@ -4,8 +4,8 @@
 
 namespace SSD_Components
 {
-	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages, bool LFU, unsigned int RC_bound)
-	 : capacity_in_pages(capacity_in_pages), LFU(LFU), RC_bound(RC_bound), RC_capacity_in_pages(1024) {
+	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages, bool LFU, unsigned int RC_bound, unsigned int RC_Capacity)
+	 : capacity_in_pages(capacity_in_pages), LFU(LFU), RC_bound(RC_bound), RC_Capacity(RC_Capacity) {
 	}
 	bool Data_Cache_Flash::Exists(const stream_id_type stream_id, const LPA_type lpn)
 	{
@@ -264,10 +264,10 @@ namespace SSD_Components
 				return v.first == key;
 			});
 		if(it == read_count.end()){
-			if(read_count.size() >= RC_capacity_in_pages){
+			if(read_count.size() >= (RC_Capacity / sizeof(LPA_type))){
 				read_count.pop_back();
-				read_count.push_front(std::pair<LPA_type, int>(key, 1));
 			}
+			read_count.push_front(std::pair<LPA_type, int>(key, 1));
 		}else{
 			it->second++;
 		}
@@ -277,7 +277,6 @@ namespace SSD_Components
     void Data_Cache_Flash::RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn)
     {
 		if(RC_bound == 0) return;
-
 		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
 		auto it = std::find_if(read_count.begin(), read_count.end(),
 			[&](const std::pair<LPA_type, int> v){

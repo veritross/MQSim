@@ -43,7 +43,7 @@ namespace SSD_Components
 	class Data_Cache_Flash
 	{
 	public:
-		Data_Cache_Flash(unsigned int capacity_in_pages = 0, bool LFU = false, unsigned int read_cache_bound = 0);
+		Data_Cache_Flash(unsigned int capacity_in_pages = 0, bool LFU = false, unsigned int RC_bound = 0, unsigned int RC_Capacity = 0);
 		~Data_Cache_Flash();
 		bool Exists(const stream_id_type streamID, const LPA_type lpn);
 		bool Check_free_slot_availability();
@@ -69,7 +69,7 @@ namespace SSD_Components
 		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>> lru_list;
 		std::list<std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>*> lfu_list;
 		std::list<std::pair<LPA_type, int>> read_count;
-		const unsigned int RC_capacity_in_pages;
+		const unsigned int RC_Capacity;
 		const unsigned int RC_bound;
 		unsigned int capacity_in_pages;
 		bool LFU;
