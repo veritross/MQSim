@@ -32,8 +32,9 @@ public:
 	static sim_time_type Data_Cache_DRAM_tCL;//tCL parameter to access DRAM in the data cache, the unit is nano-seconds
 	static sim_time_type Data_Cache_DRAM_tRP;//tRP parameter to access DRAM in the data cache, the unit is nano-seconds
 	static bool LFU;
+	static unsigned int LFU_reset_interval;
 	static unsigned int RC_Bound;
-	static unsigned int RC_Capacity;
+	static unsigned int RC_capacity;
 	static SSD_Components::Flash_Address_Mapping_Type Address_Mapping;
 	static bool Ideal_Mapping_Table;//If mapping is ideal, then all the mapping entries are found in the DRAM and there is no need to read mapping entries from flash
 	static unsigned int CMT_Capacity;//Size of SRAM/DRAM space that is used to cache address mapping table, the unit is bytes

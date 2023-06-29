@@ -328,7 +328,7 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 																	  parameters->Data_Cache_DRAM_Data_Busrt_Size, parameters->Data_Cache_DRAM_tRCD, parameters->Data_Cache_DRAM_tCL, parameters->Data_Cache_DRAM_tRP,
 																	  caching_modes, (unsigned int)io_flows->size(),
 																	  parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->Flash_Channel_Count * parameters->Chip_No_Per_Channel * parameters->Flash_Parameters.Die_No_Per_Chip * parameters->Flash_Parameters.Plane_No_Per_Die * parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->LFU,
-																	  parameters->RC_Bound, parameters->RC_Capacity);
+																	  parameters->RC_Bound, parameters->RC_capacity, parameters->LFU_reset_interval);
 
 			break;
 		case SSD_Components::Caching_Mechanism::ADVANCED:
@@ -337,7 +337,7 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 																		parameters->Data_Cache_DRAM_Data_Busrt_Size, parameters->Data_Cache_DRAM_tRCD, parameters->Data_Cache_DRAM_tCL, parameters->Data_Cache_DRAM_tRP,
 																		caching_modes, parameters->Data_Cache_Sharing_Mode, (unsigned int)io_flows->size(),
 																		parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->Flash_Channel_Count * parameters->Chip_No_Per_Channel * parameters->Flash_Parameters.Die_No_Per_Chip * parameters->Flash_Parameters.Plane_No_Per_Die * parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->LFU,
-																		parameters->RC_Bound, parameters->RC_Capacity);
+																		parameters->RC_Bound, parameters->RC_capacity, parameters->LFU_reset_interval);
 
 			break;
 		default:
