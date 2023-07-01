@@ -6,9 +6,6 @@ namespace SSD_Components
 {
 	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages, bool LFU, unsigned int RC_bound, unsigned int RC_capacity, unsigned int LFU_reset_interval)
 	 : capacity_in_pages(capacity_in_pages), LFU(LFU), RC_bound(RC_bound), RC_capacity(RC_capacity), LFU_reset_interval(LFU_reset_interval) {
-		if(LFU && LFU_reset_interval == 0){
-			PRINT_ERROR("LFU reset interval has not been set")
-		}
 		next_LFU_reset_milestone = LFU_reset_interval;
 	}
 	bool Data_Cache_Flash::Exists(const stream_id_type stream_id, const LPA_type lpn)
@@ -105,9 +102,9 @@ namespace SSD_Components
 			Data_Cache_Slot_Type evicted_item = *evicted_item_ptr->second;
 			LPA_type key = evicted_item_ptr->first;
 			slots.erase(key);
-			delete (*evicted_item_ptr).second;
 			LFU_Remove_Data((*evicted_item_ptr).second, key);
-			if (Simulator->Time() > next_LFU_reset_milestone) {
+			delete (*evicted_item_ptr).second;
+			if (LFU_reset_interval != 0 && Simulator->Time() > next_LFU_reset_milestone) {
 				LFU_Reset_All();
 				next_LFU_reset_milestone = Simulator->Time() + LFU_reset_interval;
 			}
@@ -285,6 +282,7 @@ namespace SSD_Components
 		}
 
 		for(auto e : (**front_list)){
+			e.second->lfu_list_ptr = front_list;
 			e.second->accessCount = 0;
 		}
     }

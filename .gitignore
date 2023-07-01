@@ -2,3 +2,4 @@ MQSim
 build/
 **/ssdconfig.xml
 **/*.xml
+**/traces/*

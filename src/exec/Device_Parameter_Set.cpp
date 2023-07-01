@@ -479,7 +479,7 @@ void Device_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 				} 	else{
 					PRINT_ERROR("Unknown data cache evict policy in the SSD configuration file")
 				}
-			} else if(strcmp(param->name(), "LFU_reset_interval") == 0){
+			} else if(strcmp(param->name(), "LFU_Reset_Interval") == 0){
 				std::string val = param->value();
 				LFU_reset_interval = std::stoul(val);
 			} else if(strcmp(param->name(), "RC_Bound") == 0){
