@@ -63,12 +63,12 @@ void read_configuration_parameters(const string ssd_config_file_path, Execution_
 			doc.parse<0>(temp_string);
 			rapidxml::xml_node<> *mqsim_config = doc.first_node("Execution_Parameter_Set");
 			if (mqsim_config != NULL) {
-				exec_params = new Execution_Parameter_Set;
 				exec_params->XML_deserialize(mqsim_config);
 			} else {
 				PRINT_MESSAGE("Error in the SSD configuration file!")
 				PRINT_MESSAGE("Using MQSim's default configuration.")
 			}
+			delete[] temp_string;
 		} else {
 			PRINT_MESSAGE("Using MQSim's default configuration.");
 			PRINT_MESSAGE("Writing the default configuration parameters to the expected configuration file.");
@@ -129,6 +129,7 @@ std::vector<std::vector<IO_Flow_Parameter_Set*>*>* read_workload_definitions(con
 				PRINT_MESSAGE("Writing the default workload definitions to the expected workload definition file.");
 				PRINT_MESSAGE("[====================] Done!\n");
 			}
+			delete[] temp_string;
 		}
 	}
 
@@ -292,9 +293,12 @@ int main(int argc, char* argv[])
 		exec_params->Host_Configuration.Input_file_path = workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of("."));//Create Host_System based on the specified parameters
 		Host_System host(&exec_params->Host_Configuration, exec_params->SSD_Device_Configuration.Enabled_Preconditioning, ssd.Host_interface);
 		host.Attach_ssd_device(&ssd);
-
+				delete exec_params;
 		Simulator->Start_simulation();
-
+		for (auto io_flow_def = (*io_scen)->begin(); io_flow_def != (*io_scen)->end(); io_flow_def++) {
+			delete *io_flow_def;
+		}
+		delete *io_scen;
 		time_t end_time = time(0);
 		dt = ctime(&end_time);
 		PRINT_MESSAGE("MQSim finished at " << dt)
@@ -304,8 +308,10 @@ int main(int argc, char* argv[])
 
 		PRINT_MESSAGE("Writing results to output file .......");
 		collect_results(ssd, host, (workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml").c_str());
+
 	}
     cout << "Simulation complete; Press any key to exit." << endl;
+
 
 	cin.get(); // Disable if you prefer batch runs
 

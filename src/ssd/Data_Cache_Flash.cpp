@@ -91,7 +91,6 @@ namespace SSD_Components
 		delete lru_list.back().second;
 		lru_list.pop_back();
 		return evicted_item;
-		
 	}
 
 	Data_Cache_Slot_Type Data_Cache_Flash::Evict_one_slot_lru()

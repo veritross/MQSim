@@ -14,8 +14,7 @@ namespace SSD_Components
 
 	Cached_Mapping_Table::~Cached_Mapping_Table()
 	{
-		std::unordered_map<LPA_type, CMTSlotType*> addressMap;
-		std::list<std::pair<LPA_type, CMTSlotType*>> lruList;
+
 
 		auto entry = addressMap.begin();
 		while (entry != addressMap.end()) {
@@ -399,6 +398,16 @@ namespace SSD_Components
 			delete domains[i];
 		}
 		delete[] domains;
+		for (unsigned int channel_id = 0; channel_id < channel_count; channel_id++) {
+			for (unsigned int chip_id = 0; chip_id < chip_no_per_channel; chip_id++) {
+				for (unsigned int die_id = 0; die_id < die_no_per_chip; die_id++) {
+					delete[] Write_transactions_for_overfull_planes[channel_id][chip_id][die_id];
+				}
+				delete[] Write_transactions_for_overfull_planes[channel_id][chip_id];
+			}
+			delete[] Write_transactions_for_overfull_planes[channel_id];
+		}
+		delete[] Write_transactions_for_overfull_planes;
 	}
 
 	void Address_Mapping_Unit_Page_Level::Setup_triggers()

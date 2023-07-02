@@ -19,9 +19,12 @@ namespace SSD_Components
 		for (unsigned int i = 0; i < stream_count; i++) {
 			this->caching_mode_per_input_stream[i] = caching_mode_per_input_stream[i];
 		}
+		delete[] caching_mode_per_input_stream;
 	}
 
-	Data_Cache_Manager_Base::~Data_Cache_Manager_Base() {}
+	Data_Cache_Manager_Base::~Data_Cache_Manager_Base() {
+		delete[] caching_mode_per_input_stream;
+	}
 
 	void Data_Cache_Manager_Base::Setup_triggers()
 	{

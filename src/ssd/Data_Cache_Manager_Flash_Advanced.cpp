@@ -59,6 +59,7 @@ namespace SSD_Components
 		{
 			case SSD_Components::Cache_Sharing_Mode::SHARED:
 			{
+				delete[] back_pressure_buffer_depth;
 				delete per_stream_cache[0];
 				while (dram_execution_queue[0].size()) {
 					delete dram_execution_queue[0].front();
@@ -70,6 +71,7 @@ namespace SSD_Components
 				break;
 			}
 			case SSD_Components::Cache_Sharing_Mode::EQUAL_PARTITIONING:
+				delete[] back_pressure_buffer_depth;
 				for (unsigned int i = 0; i < stream_count; i++) {
 					delete per_stream_cache[i];
 					while (dram_execution_queue[i].size()) {
@@ -207,6 +209,7 @@ namespace SSD_Components
 							page_status_type available_sectors_bitmap = per_stream_cache[tr->Stream_id]->Get_slot(tr->Stream_id, tr->LPA).State_bitmap_of_existing_sectors & tr->read_sectors_bitmap;
 							if (available_sectors_bitmap == tr->read_sectors_bitmap) {
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(tr->read_sectors_bitmap);
+								delete tr;
 								user_request->Transaction_list.erase(it++);//the ++ operation should happen here, otherwise the iterator will be part of the list after erasing it from the list
 							} else if (available_sectors_bitmap != 0) {
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(available_sectors_bitmap);
@@ -313,6 +316,8 @@ namespace SSD_Components
 				flash_written_back_write_size_in_sectors += count_sector_no_from_status_bitmap(tr->write_sectors_bitmap);
 				bloom_filter[user_request->Stream_id].insert(tr->LPA);
 				writeback_transactions.push_back(tr);
+			}else{
+				delete tr;
 			}
 			user_request->Transaction_list.erase(it++);
 		}
@@ -328,6 +333,8 @@ namespace SSD_Components
 			read_transfer_info->next_event_type = Data_Cache_Simulation_Event_Type::MEMORY_READ_FOR_CACHE_EVICTION_FINISHED;
 			read_transfer_info->Stream_id = user_request->Stream_id;
 			service_dram_access_request(read_transfer_info);
+		} else{
+			delete evicted_cache_slots;
 		}
 
 		//Issue memory write to write data to DRAM
