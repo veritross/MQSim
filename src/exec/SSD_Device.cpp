@@ -381,10 +381,10 @@ SSD_Device::~SSD_Device()
 		{
 			delete ((SSD_Components::ONFI_Channel_NVDDR2 *)this->Channels[channel_cntr])->Chips[chip_cntr];
 		}
-		delete this->Channels[channel_cntr];
+		delete[] (SSD_Components::ONFI_Channel_NVDDR2 *)this->Channels[channel_cntr];
 	}
 
-	delete this->PHY;
+	delete (SSD_Components::NVM_PHY_ONFI_NVDDR2*)this->PHY;
 	delete ((SSD_Components::FTL *)this->Firmware)->TSU;
 	delete ((SSD_Components::FTL *)this->Firmware)->BlockManager;
 	delete ((SSD_Components::FTL *)this->Firmware)->Address_Mapping_Unit;

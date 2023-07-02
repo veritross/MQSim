@@ -9,7 +9,7 @@ namespace SSD_Components
 Input_Stream_NVMe::~Input_Stream_NVMe()
 {
 	for (auto &user_request : Waiting_user_requests)
-		PRINT_MESSAGE(user_request->ID)
+		delete user_request;
 	for (auto &user_request : Completed_user_requests)
 		delete user_request;
 }
