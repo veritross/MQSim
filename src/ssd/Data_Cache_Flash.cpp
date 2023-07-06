@@ -103,9 +103,9 @@ namespace SSD_Components
 			slots.erase(key);
 			LFU_Remove_Data((*evicted_item_ptr).second, key);
 			delete (*evicted_item_ptr).second;
-			if (LFU_reset_interval != 0 && Simulator->Time() > next_LFU_reset_milestone) {
+			if (LFU_reset_interval != 0 && Simulator->Time() / 1000000 > next_LFU_reset_milestone) {
 				LFU_Reset_All();
-				next_LFU_reset_milestone = Simulator->Time() + LFU_reset_interval;
+				next_LFU_reset_milestone = Simulator->Time() / 1000000 + LFU_reset_interval;
 			}
 			return evicted_item;
 		}
