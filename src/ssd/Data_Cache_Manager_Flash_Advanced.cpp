@@ -208,18 +208,22 @@ namespace SSD_Components
 						if (per_stream_cache[tr->Stream_id]->Exists(tr->Stream_id, tr->LPA)) {
 							page_status_type available_sectors_bitmap = per_stream_cache[tr->Stream_id]->Get_slot(tr->Stream_id, tr->LPA).State_bitmap_of_existing_sectors & tr->read_sectors_bitmap;
 							if (available_sectors_bitmap == tr->read_sectors_bitmap) {
+								Stats::readTR_Cache_hits++;
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(tr->read_sectors_bitmap);
 								delete tr;
 								user_request->Transaction_list.erase(it++);//the ++ operation should happen here, otherwise the iterator will be part of the list after erasing it from the list
 							} else if (available_sectors_bitmap != 0) {
+								Stats::readTR_Cache_miss++;
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(available_sectors_bitmap);
 								tr->read_sectors_bitmap = (tr->read_sectors_bitmap & ~available_sectors_bitmap);
 								tr->Data_and_metadata_size_in_byte -= count_sector_no_from_status_bitmap(available_sectors_bitmap) * SECTOR_SIZE_IN_BYTE;
 								it++;
 							} else {
+								Stats::readTR_Cache_miss++;
 								it++;
 							}
 						} else {
+							Stats::readTR_Cache_miss++;
 							it++;
 						}
 					}
@@ -288,6 +292,7 @@ namespace SSD_Components
 			if (per_stream_cache[tr->Stream_id]->Exists(tr->Stream_id, tr->LPA)) {
 				/*MQSim should get rid of writting stale data to the cache.
 				* This situation may result from out-of-order transaction execution*/
+				Stats::writeTR_Cache_hits++;
 				Data_Cache_Slot_Type slot = per_stream_cache[tr->Stream_id]->Get_slot(tr->Stream_id, tr->LPA);
 				sim_time_type timestamp = slot.Timestamp;
 				NVM::memory_content_type content = slot.Content;
@@ -297,6 +302,7 @@ namespace SSD_Components
 				}
 				per_stream_cache[tr->Stream_id]->Update_data(tr->Stream_id, tr->LPA, content, timestamp, tr->write_sectors_bitmap | slot.State_bitmap_of_existing_sectors);
 			} else {//the logical address is not in the cache
+				Stats::writeTR_Cache_miss++;
 				if (!per_stream_cache[tr->Stream_id]->Check_free_slot_availability()) {
 					Data_Cache_Slot_Type evicted_slot = per_stream_cache[tr->Stream_id]->Evict_one_slot_lru();
 					if (evicted_slot.Status == Cache_Slot_Status::DIRTY_NO_FLASH_WRITEBACK) {
