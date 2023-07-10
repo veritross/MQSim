@@ -19,7 +19,6 @@ namespace Utils
 
 			return true;
 		}
-
 		return false;
 	}
 	
@@ -41,7 +40,7 @@ namespace Utils
 			indent += 1;
 			openTags += 1;
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("1. The XML output file is closed. Unable to write to file");
 		}
 	}
 	
@@ -54,7 +53,7 @@ namespace Utils
 
 			outFile << " <" << attribute_name + ">" + attribute_value + "</" << attribute_name + ">\n";
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("2. The XML output file is closed. Unable to write to file");
 		}
 	}
 	
@@ -68,7 +67,7 @@ namespace Utils
 			tempOpenTag.resize(openTags - 1);
 			openTags -= 1;
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("3. The XML output file is closed. Unable to write to file");
 		}
 	}
 	
@@ -82,7 +81,7 @@ namespace Utils
 			openElements += 1;
 			outFile << "<" << elementTag;
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("4. The XML output file is closed. Unable to write to file");
 		}
 	}
 
@@ -93,7 +92,7 @@ namespace Utils
 			tempElementTag.resize(openElements - 1);
 			openElements -= 1;
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("5. The XML output file is closed. Unable to write to file");
 		}
 	}
 
@@ -102,7 +101,7 @@ namespace Utils
 		if (outFile.is_open()) {
 			outFile << " " << outAttribute;
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("6. The XML output file is closed. Unable to write to file");
 		}
 	}
 
@@ -112,7 +111,7 @@ namespace Utils
 			outFile << " ";
 			outFile << attribute_name + "=\"" + attribute_value + "\"";
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("7. The XML output file is closed. Unable to write to file");
 		}
 	}
 
@@ -121,7 +120,7 @@ namespace Utils
 		if (outFile.is_open()) {
 			outFile << ">" << outString;
 		} else {
-			PRINT_ERROR("The XML output file is closed. Unable to write to file");
+			PRINT_ERROR("8. The XML output file is closed. Unable to write to file");
 		}
 	}
 }

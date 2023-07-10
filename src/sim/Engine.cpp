@@ -1,6 +1,8 @@
 #include <stdexcept>
+#include <cmath>
 #include "Engine.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
+
 
 namespace MQSimEngine
 {
@@ -15,6 +17,9 @@ namespace MQSimEngine
 
 	void Engine::Reset()
 	{
+		std::cout << "Type logging time interval in ns(exponent of 10). If you don't want to log periodically, type 0." << std::endl;
+		std::cin >> logging_time_interval;
+		logging_time_interval = std::pow(10, logging_time_interval);
 		_EventList->Clear();
 		_ObjectList.clear();
 		_sim_time = 0;
@@ -53,7 +58,7 @@ namespace MQSimEngine
 	}
 
 	/// This is the main method of simulator which starts simulation process.
-	void Engine::Start_simulation()
+	void Engine::Start_simulation(void* ssd, void* host_system, std::string output_name, void(*print_func) (void*, void*, std::string, sim_time_type))
 	{
 		started = true;
 
@@ -78,25 +83,51 @@ namespace MQSimEngine
 		}
 		
 		Sim_Event* ev = NULL;
-		while (true) {
-			if (_EventList->Count == 0 || stop) {
-				break;
-			}
-
-			EventTreeNode* minNode = _EventList->Get_min_node();
-			ev = minNode->FirstSimEvent;
-
-			_sim_time = ev->Fire_time;
-
-			while (ev != NULL) {
-				if(!ev->Ignore) {
-					ev->Target_sim_object->Execute_simulator_event(ev);
+		if(logging_time_interval != 1){
+			while (true) {
+				if (_EventList->Count == 0 || stop) {
+					break;
 				}
-				Sim_Event* consumed_event = ev;
-				ev = ev->Next_event;
-				delete consumed_event;
+
+				EventTreeNode* minNode = _EventList->Get_min_node();
+				ev = minNode->FirstSimEvent;
+				if(_sim_time == 0){
+					print_timer = (ev->Fire_time / logging_time_interval) + 1;
+				}
+				_sim_time = ev->Fire_time;
+				if(_sim_time / logging_time_interval >= print_timer){
+					(print_func)(ssd, host_system, output_name, print_timer);
+					print_timer++;
+				}
+				while (ev != NULL) {
+					if(!ev->Ignore) {
+						ev->Target_sim_object->Execute_simulator_event(ev);
+					}
+					Sim_Event* consumed_event = ev;
+					ev = ev->Next_event;
+					delete consumed_event;
+				}
+				_EventList->Remove(minNode);
 			}
-			_EventList->Remove(minNode);
+		} else{
+			while (true) {
+				if (_EventList->Count == 0 || stop) {
+					break;
+				}
+
+				EventTreeNode* minNode = _EventList->Get_min_node();
+				ev = minNode->FirstSimEvent;
+				_sim_time = ev->Fire_time;
+				while (ev != NULL) {
+					if(!ev->Ignore) {
+						ev->Target_sim_object->Execute_simulator_event(ev);
+					}
+					Sim_Event* consumed_event = ev;
+					ev = ev->Next_event;
+					delete consumed_event;
+				}
+				_EventList->Remove(minNode);
+			}
 		}
 	}
 

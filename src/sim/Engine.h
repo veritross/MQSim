@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <unordered_map>
+
 #include "Sim_Defs.h"
 #include "EventTree.h"
 #include "Sim_Object.h"
@@ -30,12 +31,14 @@ namespace MQSimEngine {
 		void AddObject(Sim_Object* obj);
 		Sim_Object* GetObject(sim_object_id_type object_id);
 		void RemoveObject(Sim_Object* obj);
-		void Start_simulation();
+		void Start_simulation(void* ssd, void* host_system, std::string output_name, void(*print_func) (void*, void*, std::string, sim_time_type));
 		void Stop_simulation();
 		bool Has_started();
 		bool Is_integrated_execution_mode();
 	private:
+		unsigned int logging_time_interval;
 		sim_time_type _sim_time;
+		sim_time_type print_timer;
 		EventTree* _EventList;
 		std::unordered_map<sim_object_id_type, Sim_Object*> _ObjectList;
 		bool stop;
