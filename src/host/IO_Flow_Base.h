@@ -48,7 +48,7 @@ namespace Host_Components
 					 uint16_t nvme_submission_queue_size, uint16_t nvme_completion_queue_size, IO_Flow_Priority_Class::Priority priority_class,
 					 sim_time_type stop_time, double initial_occupancy_ratio, unsigned int total_requets_to_be_generated,
 					 HostInterface_Types SSD_device_type, PCIe_Root_Complex *pcie_root_complex, SATA_HBA *sata_hba,
-					 bool enabled_logging, sim_time_type logging_period, std::string logging_file_path);
+					 bool enabled_logging, bool enabled_logging_2, sim_time_type logging_period, std::string logging_file_path);
 		~IO_Flow_Base();
 		void Start_simulation();
 		IO_Flow_Priority_Class::Priority Priority_class() { return priority_class; }
@@ -110,6 +110,7 @@ namespace Host_Components
 
 		//Variables used to log response time changes
 		bool enabled_logging;
+		bool enabled_logging_2;
 		sim_time_type logging_period;
 		sim_time_type next_logging_milestone;
 		std::string logging_file_path;
@@ -118,7 +119,7 @@ namespace Host_Components
 		uint32_t Get_end_to_end_request_delay_short_term();//in microseconds
 		sim_time_type STAT_sum_device_response_time_short_term, STAT_sum_request_delay_short_term;
 		unsigned int STAT_serviced_request_count_short_term;
-
+		std::ofstream log_file2;
 	};
 }
 

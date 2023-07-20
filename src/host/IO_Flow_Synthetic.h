@@ -18,7 +18,7 @@ public:
 					  Utils::Request_Generator_Type generator_type, sim_time_type Average_inter_arrival_time_nano_sec, unsigned int average_number_of_enqueued_requests,
 					  bool generate_aligned_addresses, unsigned int alignment_value,
 					  int seed, sim_time_type stop_time, double initial_occupancy_ratio, unsigned int total_req_count, HostInterface_Types SSD_device_type, PCIe_Root_Complex *pcie_root_complex, SATA_HBA *sata_hba,
-					  bool enabled_logging, sim_time_type logging_period, std::string logging_file_path);
+					  bool enabled_logging, bool enabled_logging_2, sim_time_type logging_period, std::string logging_file_path);
 	~IO_Flow_Synthetic();
 	Host_IO_Request *Generate_next_request();
 	void NVMe_consume_io_request(Completion_Queue_Entry *);

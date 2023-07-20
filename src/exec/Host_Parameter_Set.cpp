@@ -6,6 +6,7 @@ double Host_Parameter_Set::PCIe_Lane_Bandwidth = 0.4;//uint is GB/s
 unsigned int Host_Parameter_Set::PCIe_Lane_Count = 4;
 sim_time_type Host_Parameter_Set::SATA_Processing_Delay;//The overall hardware and software processing delay to send/receive a SATA message in nanoseconds
 bool Host_Parameter_Set::Enable_ResponseTime_Logging = false;
+bool Host_Parameter_Set::Enable_Cache_Logging = false;
 sim_time_type Host_Parameter_Set::ResponseTime_Logging_Period_Length = 400000;//nanoseconds
 std::string Host_Parameter_Set::Input_file_path;
 std::vector<IO_Flow_Parameter_Set*> Host_Parameter_Set::IO_Flow_Definitions;
@@ -32,6 +33,10 @@ void Host_Parameter_Set::XML_serialize(Utils::XmlWriter& xmlwriter)
 	val = (Enable_ResponseTime_Logging ? "true" : "false");
 	xmlwriter.Write_attribute_string(attr, val);
 
+	attr = "Enable_Cache_Logging";
+	val = (Enable_Cache_Logging ? "true" : "false");
+	xmlwriter.Write_attribute_string(attr, val);
+
 	attr = "ResponseTime_Logging_Period_Length";
 	val = std::to_string(ResponseTime_Logging_Period_Length);
 	xmlwriter.Write_attribute_string(attr, val);
@@ -56,6 +61,10 @@ void Host_Parameter_Set::XML_deserialize(rapidxml::xml_node<> *node)
 				std::string val = param->value();
 				std::transform(val.begin(), val.end(), val.begin(), ::toupper);
 				Enable_ResponseTime_Logging = (val.compare("FALSE") == 0 ? false : true);
+			} else if (strcmp(param->name(), "Enable_Cache_Logging") == 0) {
+				std::string val = param->value();
+				std::transform(val.begin(), val.end(), val.begin(), ::toupper);
+				Enable_Cache_Logging = (val.compare("FALSE") == 0 ? false : true);
 			} else if (strcmp(param->name(), "ResponseTime_Logging_Period_Length") == 0) {
 				std::string val = param->value();
 				ResponseTime_Logging_Period_Length = std::stoul(val);
