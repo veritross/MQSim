@@ -8,6 +8,7 @@
 #include "../host/PCIe_Message.h"
 #include "User_Request.h"
 #include "Data_Cache_Manager_Base.h"
+#include "Stats.h"
 #include <stdint.h>
 #include <cstring>
 

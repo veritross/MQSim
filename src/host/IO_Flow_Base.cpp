@@ -133,15 +133,17 @@ IO_Flow_Base::IO_Flow_Base(const sim_object_id_type &name, uint16_t flow_id, LHA
 			default:
 				PRINT_ERROR("Unsupported host interface type in IO_Flow_Base!")
 		}
-
 	}
 
 	void IO_Flow_Base::Start_simulation()
 	{
 		next_logging_milestone = logging_period;
+		std::ofstream ofs;
+		ofs.open(logging_file_path + " -1", std::ofstream::trunc);
+		ofs.close();
 		if (enabled_logging) {
 			log_file.open(logging_file_path, std::ofstream::out);
-		}
+		}			
 		log_file << "SimulationTime(us)\t" << "ReponseTime(us)\t" << "EndToEndDelay(us)"<< std::endl;
 		STAT_sum_device_response_time_short_term = 0;
 		STAT_serviced_request_count_short_term = 0;
@@ -308,7 +310,48 @@ IO_Flow_Base::IO_Flow_Base(const sim_object_id_type &name, uint16_t flow_id, LHA
 			}
 			STAT_transferred_bytes_write += request->LBA_count * SECTOR_SIZE_IN_BYTE;
 		}
+		std::ofstream ofs;
+		ofs.open(logging_file_path + " -1", std::ios_base::app | std::ios_base::ate);
+		SSD_Components::User_Request* user_request = SSD_Components::Stats::stored_request[cqe->Command_Identifier];
+		std::string str = "";
+		str += std::to_string(request->Arrival_time);
+		str += "\t";
+		str += std::to_string(request->Enqueue_time);
+		str += "\t";
+		str += std::to_string(Simulator->Time());
+		str += "\t";
+		str += (request->Type == Host_IO_Request_Type::READ ? "READ" : "WRITE");
+		str += "\t";
+		str += std::to_string(user_request->size_of_pages.size());
+		str += "\n";
 
+
+		if(request->Type == Host_IO_Request_Type::READ){
+			for(auto& e : (user_request->size_of_pages)){
+				//Cache Miss
+				if(e.first == 1){
+					str += "1\t0\t";
+					str += std::to_string(e.second);
+				}
+				//Cache Hit
+				else{
+					str += "0\t";
+					str += std::to_string(e.first);
+					str += std::to_string(e.second);
+				}
+				str += "\n";
+			}
+		} else{
+			for(auto&e : (user_request->size_of_pages)){
+				str += std::to_string(e.first);
+				str += "\t";
+				str += std::to_string(e.second);
+				str += "\n";
+			}
+		}
+		ofs << str;
+		ofs.close();
+		DELETE_REQUEST_NVME(user_request);
 		delete request;
 
 		nvme_queue_pair.Submission_queue_head = cqe->SQ_Head;

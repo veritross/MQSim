@@ -192,7 +192,6 @@ namespace SSD_Components
 		if (user_request->Transaction_list.size() == 0) {
 			return;
 		}
-
 		if (user_request->Type == UserRequestType::READ) {
 			switch (caching_mode_per_input_stream[user_request->Stream_id]) {
 				case Caching_Mode::TURNED_OFF:
@@ -205,11 +204,14 @@ namespace SSD_Components
 					std::list<NVM_Transaction*>::iterator it = user_request->Transaction_list.begin();
 					while (it != user_request->Transaction_list.end()) {
 						NVM_Transaction_Flash_RD* tr = (NVM_Transaction_Flash_RD*)(*it);
+						unsigned int size_in_DRAM = 0;
+						unsigned int size_in_Flash = 0;
 						if (per_stream_cache[tr->Stream_id]->Exists(tr->Stream_id, tr->LPA)) {
 							page_status_type available_sectors_bitmap = per_stream_cache[tr->Stream_id]->Get_slot(tr->Stream_id, tr->LPA).State_bitmap_of_existing_sectors & tr->read_sectors_bitmap;
 							if (available_sectors_bitmap == tr->read_sectors_bitmap) {
 								Stats::readTR_Cache_hits++;
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(tr->read_sectors_bitmap);
+								size_in_DRAM += tr->Data_and_metadata_size_in_byte;
 								delete tr;
 								user_request->Transaction_list.erase(it++);//the ++ operation should happen here, otherwise the iterator will be part of the list after erasing it from the list
 							} else if (available_sectors_bitmap != 0) {
@@ -217,15 +219,21 @@ namespace SSD_Components
 								user_request->Sectors_serviced_from_cache += count_sector_no_from_status_bitmap(available_sectors_bitmap);
 								tr->read_sectors_bitmap = (tr->read_sectors_bitmap & ~available_sectors_bitmap);
 								tr->Data_and_metadata_size_in_byte -= count_sector_no_from_status_bitmap(available_sectors_bitmap) * SECTOR_SIZE_IN_BYTE;
+								size_in_DRAM += count_sector_no_from_status_bitmap(available_sectors_bitmap) * SECTOR_SIZE_IN_BYTE;
+								size_in_Flash += tr->Data_and_metadata_size_in_byte;
 								it++;
 							} else {
+								size_in_Flash += tr->Data_and_metadata_size_in_byte;
 								Stats::readTR_Cache_miss++;
 								it++;
 							}
 						} else {
+							size_in_DRAM = 1;
+							size_in_Flash = tr->Data_and_metadata_size_in_byte;
 							Stats::readTR_Cache_miss++;
 							it++;
 						}
+						user_request->size_of_pages.push_back(std::pair<unsigned int, unsigned int>(size_in_DRAM, size_in_Flash));
 					}
 
 					if (user_request->Sectors_serviced_from_cache > 0) {
@@ -292,6 +300,7 @@ namespace SSD_Components
 			if (per_stream_cache[tr->Stream_id]->Exists(tr->Stream_id, tr->LPA)) {
 				/*MQSim should get rid of writting stale data to the cache.
 				* This situation may result from out-of-order transaction execution*/
+				user_request->size_of_pages.push_back(std::pair<unsigned int, unsigned int>(0, count_sector_no_from_status_bitmap(tr->write_sectors_bitmap) * SECTOR_SIZE_IN_BYTE));
 				Stats::writeTR_Cache_hits++;
 				Data_Cache_Slot_Type slot = per_stream_cache[tr->Stream_id]->Get_slot(tr->Stream_id, tr->LPA);
 				sim_time_type timestamp = slot.Timestamp;
@@ -302,6 +311,7 @@ namespace SSD_Components
 				}
 				per_stream_cache[tr->Stream_id]->Update_data(tr->Stream_id, tr->LPA, content, timestamp, tr->write_sectors_bitmap | slot.State_bitmap_of_existing_sectors);
 			} else {//the logical address is not in the cache
+				user_request->size_of_pages.push_back(std::pair<unsigned int, unsigned int>(1, count_sector_no_from_status_bitmap(tr->write_sectors_bitmap) * SECTOR_SIZE_IN_BYTE));
 				Stats::writeTR_Cache_miss++;
 				if (!per_stream_cache[tr->Stream_id]->Check_free_slot_availability()) {
 					Data_Cache_Slot_Type evicted_slot = per_stream_cache[tr->Stream_id]->Evict_one_slot_lru();

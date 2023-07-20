@@ -2,6 +2,8 @@
 #define STATS_H
 
 #include "SSD_Defs.h"
+#include <map>
+#include "User_Request.h"
 
 namespace SSD_Components
 {
@@ -37,6 +39,8 @@ namespace SSD_Components
 		static unsigned int Total_page_movements_for_wl, Total_wl_page_movements_per_stream[MAX_SUPPORT_STREAMS];
 
 		static unsigned int***** Block_erase_histogram;
+
+		static std::map<uint16_t, User_Request*> stored_request;
 	};
 }
 

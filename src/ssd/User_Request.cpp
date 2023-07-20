@@ -8,5 +8,6 @@ namespace SSD_Components
 	{
 		ID = "" + std::to_string(lastId++);
 		ToBeIgnored = false;
+		size_of_pages = std::list<std::pair<unsigned int, unsigned int>>();
 	}
 }

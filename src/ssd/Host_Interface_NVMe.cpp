@@ -138,7 +138,9 @@ inline void Input_Stream_Manager_NVMe::Handle_serviced_request(User_Request *req
 	}
 
 	inform_host_request_completed(stream_id, request); //Completion queue is not full, so the device can DMA the completion queue entry to the host
-	DELETE_REQUEST_NVME(request);
+	
+	//d_Stats2. Delay deleting user request for print detail of user request when finish the request.
+	//DELETE_REQUEST_NVME(request);
 }
 
 uint16_t Input_Stream_Manager_NVMe::Get_submission_queue_depth(stream_id_type stream_id)
@@ -290,6 +292,7 @@ void Request_Fetch_Unit_NVMe::Process_pcie_read_message(uint64_t address, void *
 		new_request->Stream_id = (stream_id_type)((uint64_t)(dma_req_item->object));
 		new_request->Priority_class = ((Input_Stream_Manager_NVMe *)host_interface->input_stream_manager)->Get_priority_class(new_request->Stream_id);
 		new_request->STAT_InitiationTime = Simulator->Time();
+		new_request->size_of_pages.clear();
 		Submission_Queue_Entry *sqe = (Submission_Queue_Entry *)payload;
 		switch (sqe->Opcode)
 		{
@@ -352,6 +355,7 @@ void Request_Fetch_Unit_NVMe::Send_completion_queue_element(User_Request *reques
 	cqe->SQ_ID = FLOW_ID_TO_Q_ID(request->Stream_id);
 	cqe->SF_P = 0x0001 & current_phase;
 	cqe->Command_Identifier = ((Submission_Queue_Entry *)request->IO_command_info)->Command_Identifier;
+	SSD_Components::Stats::stored_request[cqe->Command_Identifier] = request;
 	Input_Stream_NVMe *im = ((Input_Stream_NVMe *)hi->input_stream_manager->input_streams[request->Stream_id]);
 	host_interface->Send_write_message_to_host(im->Completion_queue_base_address + im->Completion_tail * sizeof(Completion_Queue_Entry), cqe, sizeof(Completion_Queue_Entry));
 	number_of_sent_cqe++;
