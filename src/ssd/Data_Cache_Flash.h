@@ -20,9 +20,8 @@ namespace SSD_Components
 		data_cache_content_type Content;
 		data_timestamp_type Timestamp;
 		Cache_Slot_Status Status;
-		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>::iterator lru_list_ptr;//used for fast implementation of LRU
-		std::list<std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>*>::iterator lfu_list_ptr;
-		int accessCount;
+		std::list<Data_Cache_Slot_Type*>::iterator lru_list_ptr;//used for fast implementation of LRU
+		uint32_t accessCount;
 	};
 
 	enum class Data_Cache_Simulation_Event_Type {
@@ -43,7 +42,7 @@ namespace SSD_Components
 	class Data_Cache_Flash
 	{
 	public:
-		Data_Cache_Flash(unsigned int capacity_in_pages = 0, bool LFU = false, unsigned int RC_bound = 0, unsigned int RC_Capacity = 0);
+		Data_Cache_Flash(unsigned int capacity_in_pages = 0, unsigned int RC_bound = 0);
 		~Data_Cache_Flash();
 		bool Exists(const stream_id_type streamID, const LPA_type lpn);
 		bool Check_free_slot_availability();
@@ -51,28 +50,23 @@ namespace SSD_Components
 		bool Empty();
 		bool Full();
 		Data_Cache_Slot_Type Get_slot(const stream_id_type stream_id, const LPA_type lpn);
-		Data_Cache_Slot_Type Evict_one_dirty_slot();
 		Data_Cache_Slot_Type Evict_one_slot_lru();
 		void Change_slot_status_to_writeback(const stream_id_type stream_id, const LPA_type lpn);
 		void Remove_slot(const stream_id_type stream_id, const LPA_type lpn);
 		void Insert_read_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_read_sectors);
 		void Insert_write_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors);
 		void Update_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors);
-		void LFU_Increase_access_count(Data_Cache_Slot_Type* slot, LPA_type key);
-		void LFU_Insert_Data(Data_Cache_Slot_Type* slot, LPA_type key);
-		void LFU_Remove_Data(Data_Cache_Slot_Type* slot, LPA_type key);
-		void RC_Increase_access_count(const stream_id_type stream_id, const LPA_type lpn);
-		void RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn);
-		bool RC_Compare_Data(const stream_id_type stream_id, const LPA_type lpn);
+		void RC_Insert_Data(Data_Cache_Slot_Type* slot);
+		void RC_Increase_access_count(Data_Cache_Slot_Type* slot);
+		void RC_Decrease_access_count(const uint32_t accessCount);
+		uint32_t RC_getListCapacity(const uint32_t accessCount);
+
 	private:
 		std::unordered_map<LPA_type, Data_Cache_Slot_Type*> slots;
-		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>> lru_list;
-		std::list<std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>*> lfu_list;
-		std::list<std::pair<LPA_type, int>> read_count;
-		const unsigned int RC_Capacity;
+		std::vector<std::list<Data_Cache_Slot_Type*>> read_count_list;
+		unsigned int subCapacity;
 		const unsigned int RC_bound;
 		unsigned int capacity_in_pages;
-		bool LFU;
 	};
 }
 

@@ -11,8 +11,8 @@ namespace SSD_Components
 		unsigned int total_capacity_in_bytes,
 		unsigned int dram_row_size, unsigned int dram_data_rate, unsigned int dram_busrt_size, sim_time_type dram_tRCD, sim_time_type dram_tCL, sim_time_type dram_tRP,
 		Caching_Mode* caching_mode_per_input_stream, Cache_Sharing_Mode sharing_mode,unsigned int stream_count,
-		unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, bool LFU, unsigned int RC_Bound, unsigned int RC_Capacity)
-		: Data_Cache_Manager_Base(id, host_interface, firmware, dram_row_size, dram_data_rate, dram_busrt_size, dram_tRCD, dram_tCL, dram_tRP, caching_mode_per_input_stream, sharing_mode, stream_count, LFU),
+		unsigned int sector_no_per_page, unsigned int back_pressure_buffer_max_depth, unsigned int RC_Bound)
+		: Data_Cache_Manager_Base(id, host_interface, firmware, dram_row_size, dram_data_rate, dram_busrt_size, dram_tRCD, dram_tCL, dram_tRP, caching_mode_per_input_stream, sharing_mode, stream_count),
 		flash_controller(flash_controller), capacity_in_bytes(total_capacity_in_bytes), sector_no_per_page(sector_no_per_page),	memory_channel_is_busy(false),
 		dram_execution_list_turn(0), back_pressure_buffer_max_depth(back_pressure_buffer_max_depth)
 	{
@@ -21,7 +21,7 @@ namespace SSD_Components
 		{
 			case SSD_Components::Cache_Sharing_Mode::SHARED:
 			{
-				Data_Cache_Flash* sharedCache = new Data_Cache_Flash(capacity_in_pages, LFU, RC_Bound, RC_Capacity);
+				Data_Cache_Flash* sharedCache = new Data_Cache_Flash(capacity_in_pages, RC_Bound);
 				per_stream_cache = new Data_Cache_Flash*[stream_count];
 				for (unsigned int i = 0; i < stream_count; i++) {
 					per_stream_cache[i] = sharedCache;
@@ -36,7 +36,7 @@ namespace SSD_Components
 			case SSD_Components::Cache_Sharing_Mode::EQUAL_PARTITIONING:
 				per_stream_cache = new Data_Cache_Flash*[stream_count];
 				for (unsigned int i = 0; i < stream_count; i++) {
-					per_stream_cache[i] = new Data_Cache_Flash(capacity_in_pages / stream_count, LFU, RC_Bound, RC_Capacity / stream_count);
+					per_stream_cache[i] = new Data_Cache_Flash(capacity_in_pages / stream_count, RC_Bound);
 				}
 				dram_execution_queue = new std::queue<Memory_Transfer_Info*>[stream_count];
 				waiting_user_requests_queue_for_dram_free_slot = new std::list<User_Request*>[stream_count];
@@ -396,39 +396,35 @@ namespace SSD_Components
 						((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Update_data(transaction->Stream_id, transaction->LPA, content,
 							timestamp, ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap | slot.State_bitmap_of_existing_sectors);
 					} else  {
-						((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->RC_Increase_access_count(transaction->Stream_id, transaction->LPA);
-						if(((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->RC_Compare_Data(transaction->Stream_id, transaction->LPA)){
-							if (!((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Check_free_slot_availability()) {
-								std::list<NVM_Transaction*>* evicted_cache_slots = new std::list<NVM_Transaction*>;
-								Data_Cache_Slot_Type evicted_slot = ((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Evict_one_slot_lru();
-								if (evicted_slot.Status == Cache_Slot_Status::DIRTY_NO_FLASH_WRITEBACK) {
-									Memory_Transfer_Info* transfer_info = new Memory_Transfer_Info;
-									transfer_info->Size_in_bytes = count_sector_no_from_status_bitmap(evicted_slot.State_bitmap_of_existing_sectors) * SECTOR_SIZE_IN_BYTE;
-									evicted_cache_slots->push_back(new NVM_Transaction_Flash_WR(Transaction_Source_Type::USERIO,
-										transaction->Stream_id, transfer_info->Size_in_bytes, evicted_slot.LPA, NULL, IO_Flow_Priority_Class::UNDEFINED, evicted_slot.Content,
-										evicted_slot.State_bitmap_of_existing_sectors, evicted_slot.Timestamp));
-									transfer_info->Related_request = evicted_cache_slots;
-									transfer_info->next_event_type = Data_Cache_Simulation_Event_Type::MEMORY_READ_FOR_CACHE_EVICTION_FINISHED;
-									transfer_info->Stream_id = transaction->Stream_id;
-									unsigned int cache_eviction_read_size_in_sectors = count_sector_no_from_status_bitmap(evicted_slot.State_bitmap_of_existing_sectors);
-									int sharing_id = transaction->Stream_id;
-									if (((Data_Cache_Manager_Flash_Advanced*)_my_instance)->shared_dram_request_queue) {
-										sharing_id = 0;
-									}
-									((Data_Cache_Manager_Flash_Advanced*)_my_instance)->back_pressure_buffer_depth[sharing_id] += cache_eviction_read_size_in_sectors;
-									((Data_Cache_Manager_Flash_Advanced*)_my_instance)->service_dram_access_request(transfer_info);
+						if (!((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Check_free_slot_availability()) {
+							std::list<NVM_Transaction*>* evicted_cache_slots = new std::list<NVM_Transaction*>;
+							Data_Cache_Slot_Type evicted_slot = ((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Evict_one_slot_lru();
+							if (evicted_slot.Status == Cache_Slot_Status::DIRTY_NO_FLASH_WRITEBACK) {
+								Memory_Transfer_Info* transfer_info = new Memory_Transfer_Info;
+								transfer_info->Size_in_bytes = count_sector_no_from_status_bitmap(evicted_slot.State_bitmap_of_existing_sectors) * SECTOR_SIZE_IN_BYTE;
+								evicted_cache_slots->push_back(new NVM_Transaction_Flash_WR(Transaction_Source_Type::USERIO,
+									transaction->Stream_id, transfer_info->Size_in_bytes, evicted_slot.LPA, NULL, IO_Flow_Priority_Class::UNDEFINED, evicted_slot.Content,
+									evicted_slot.State_bitmap_of_existing_sectors, evicted_slot.Timestamp));
+								transfer_info->Related_request = evicted_cache_slots;
+								transfer_info->next_event_type = Data_Cache_Simulation_Event_Type::MEMORY_READ_FOR_CACHE_EVICTION_FINISHED;
+								transfer_info->Stream_id = transaction->Stream_id;
+								unsigned int cache_eviction_read_size_in_sectors = count_sector_no_from_status_bitmap(evicted_slot.State_bitmap_of_existing_sectors);
+								int sharing_id = transaction->Stream_id;
+								if (((Data_Cache_Manager_Flash_Advanced*)_my_instance)->shared_dram_request_queue) {
+									sharing_id = 0;
 								}
+								((Data_Cache_Manager_Flash_Advanced*)_my_instance)->back_pressure_buffer_depth[sharing_id] += cache_eviction_read_size_in_sectors;
+								((Data_Cache_Manager_Flash_Advanced*)_my_instance)->service_dram_access_request(transfer_info);
 							}
-							((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Insert_read_data(transaction->Stream_id, transaction->LPA,
-								((NVM_Transaction_Flash_RD*)transaction)->Content, ((NVM_Transaction_Flash_RD*)transaction)->DataTimeStamp, ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap);
-
-							Memory_Transfer_Info* transfer_info = new Memory_Transfer_Info;
-							transfer_info->Size_in_bytes = count_sector_no_from_status_bitmap(((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap) * SECTOR_SIZE_IN_BYTE;
-							transfer_info->next_event_type = Data_Cache_Simulation_Event_Type::MEMORY_WRITE_FOR_CACHE_FINISHED;
-							transfer_info->Stream_id = transaction->Stream_id;
-							((Data_Cache_Manager_Flash_Advanced*)_my_instance)->service_dram_access_request(transfer_info);
 						}
+						((Data_Cache_Manager_Flash_Advanced*)_my_instance)->per_stream_cache[transaction->Stream_id]->Insert_read_data(transaction->Stream_id, transaction->LPA,
+							((NVM_Transaction_Flash_RD*)transaction)->Content, ((NVM_Transaction_Flash_RD*)transaction)->DataTimeStamp, ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap);
 
+						Memory_Transfer_Info* transfer_info = new Memory_Transfer_Info;
+						transfer_info->Size_in_bytes = count_sector_no_from_status_bitmap(((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap) * SECTOR_SIZE_IN_BYTE;
+						transfer_info->next_event_type = Data_Cache_Simulation_Event_Type::MEMORY_WRITE_FOR_CACHE_FINISHED;
+						transfer_info->Stream_id = transaction->Stream_id;
+						((Data_Cache_Manager_Flash_Advanced*)_my_instance)->service_dram_access_request(transfer_info);
 					}
 
 					transaction->UserIORequest->Transaction_list.remove(transaction);
