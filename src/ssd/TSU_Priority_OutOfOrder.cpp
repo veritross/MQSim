@@ -1,5 +1,6 @@
 #include "TSU_Priority_OutOfOrder.h"
 #include "Host_Interface_Defs.h"
+#include "MQ_GC_Unit.h"
 
 namespace SSD_Components
 {

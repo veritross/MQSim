@@ -2,3 +2,4 @@ MQSim
 build/
 .vscode
 traces
+**.xml

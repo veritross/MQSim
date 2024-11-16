@@ -5,6 +5,8 @@
 #include "NVM_Transaction_Flash_WR.h"
 #include "FTL.h"
 
+#include "Address_Mapping_Unit_MQ.h"
+
 namespace SSD_Components
 {
 	Data_Cache_Manager_Flash_Simple::Data_Cache_Manager_Flash_Simple(const sim_object_id_type& id, Host_Interface_Base* host_interface, NVM_Firmware* firmware, NVM_PHY_ONFI* flash_controller,

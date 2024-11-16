@@ -21,7 +21,7 @@ namespace SSD_Components
 		}
 	}
 
-	inline bool Cached_Mapping_Table::Exists(const stream_id_type streamID, const LPA_type lpa)
+	bool Cached_Mapping_Table::Exists(const stream_id_type streamID, const LPA_type lpa)
 	{
 		LPA_type key = LPN_TO_UNIQUE_KEY(streamID, lpa);
 		auto it = addressMap.find(key);
@@ -242,7 +242,7 @@ namespace SSD_Components
 		delete[] Plane_ids;
 	}
 
-	inline void AddressMappingDomain::Update_mapping_info(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa, const PPA_type ppa, const page_status_type page_status_bitmap)
+	void AddressMappingDomain::Update_mapping_info(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa, const PPA_type ppa, const page_status_type page_status_bitmap)
 	{
 		if (ideal_mapping) {
 			GlobalMappingTable[lpa].PPA = ppa;
@@ -253,7 +253,7 @@ namespace SSD_Components
 		}
 	}
 
-	inline page_status_type AddressMappingDomain::Get_page_status(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa)
+	page_status_type AddressMappingDomain::Get_page_status(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa)
 	{
 		if (ideal_mapping) {
 			return GlobalMappingTable[lpa].WrittenStateBitmap;
@@ -262,7 +262,7 @@ namespace SSD_Components
 		}
 	}
 
-	inline PPA_type AddressMappingDomain::Get_ppa(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa)
+	PPA_type AddressMappingDomain::Get_ppa(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa)
 	{
 		if (ideal_mapping) {
 			return GlobalMappingTable[lpa].PPA;
@@ -271,12 +271,12 @@ namespace SSD_Components
 		}
 	}
 
-	inline PPA_type AddressMappingDomain::Get_ppa_for_preconditioning(const stream_id_type stream_id, const LPA_type lpa)
+	PPA_type AddressMappingDomain::Get_ppa_for_preconditioning(const stream_id_type stream_id, const LPA_type lpa)
 	{
 		return GlobalMappingTable[lpa].PPA;
 	}
 
-	inline bool AddressMappingDomain::Mapping_entry_accessible(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa)
+	bool AddressMappingDomain::Mapping_entry_accessible(const bool ideal_mapping, const stream_id_type stream_id, const LPA_type lpa)
 	{
 		if (ideal_mapping) {
 			return true;
@@ -609,9 +609,9 @@ namespace SSD_Components
 		} else {//This is a write transaction
 			allocate_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction);
 			//there are too few free pages remaining only for GC
-			if (ftl->GC_and_WL_Unit->Stop_servicing_writes(transaction->Address)){
-				return false;
-			}
+			// if (ftl->GC_and_WL_Unit->Stop_servicing_writes(transaction->Address)){
+			// 	return false;
+			// }
 			allocate_page_in_plane_for_user_write((NVM_Transaction_Flash_WR*)transaction, false);
 			transaction->Physical_address_determined = true;
 			
@@ -621,148 +621,148 @@ namespace SSD_Components
 	
 	void Address_Mapping_Unit_Page_Level::Allocate_address_for_preconditioning(const stream_id_type stream_id, std::map<LPA_type, page_status_type>& lpa_list, std::vector<double>& steady_state_distribution)
 	{
-		int idx = 0;
-		std::vector<LPA_type>**** assigned_lpas = new std::vector<LPA_type>***[channel_count];
-		for (unsigned int channel_cntr = 0; channel_cntr < channel_count; channel_cntr++) {
-			assigned_lpas[channel_cntr] = new std::vector<LPA_type>**[chip_no_per_channel];
-			for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++) {
-				assigned_lpas[channel_cntr][chip_cntr] = new std::vector<LPA_type>*[die_no_per_chip];
-				for (unsigned int die_cntr = 0; die_cntr < die_no_per_chip; die_cntr++) {
-					assigned_lpas[channel_cntr][chip_cntr][die_cntr] = new std::vector<LPA_type>[plane_no_per_die];
-				}
-			}
-		}
+		// int idx = 0;
+		// std::vector<LPA_type>**** assigned_lpas = new std::vector<LPA_type>***[channel_count];
+		// for (unsigned int channel_cntr = 0; channel_cntr < channel_count; channel_cntr++) {
+		// 	assigned_lpas[channel_cntr] = new std::vector<LPA_type>**[chip_no_per_channel];
+		// 	for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++) {
+		// 		assigned_lpas[channel_cntr][chip_cntr] = new std::vector<LPA_type>*[die_no_per_chip];
+		// 		for (unsigned int die_cntr = 0; die_cntr < die_no_per_chip; die_cntr++) {
+		// 			assigned_lpas[channel_cntr][chip_cntr][die_cntr] = new std::vector<LPA_type>[plane_no_per_die];
+		// 		}
+		// 	}
+		// }
 
-		//First: distribute LPAs to planes
-		NVM::FlashMemory::Physical_Page_Address plane_address;
-		for (auto lpa = lpa_list.begin(); lpa != lpa_list.end();) {
-			if ((*lpa).first >= domains[stream_id]->Total_logical_pages_no) {
-				PRINT_ERROR("Out of range LPA specified for preconditioning! LPA shoud be smaller than " << domains[stream_id]->Total_logical_pages_no << ", but it is " << (*lpa).first)
-			}
-			PPA_type ppa = domains[stream_id]->Get_ppa_for_preconditioning(stream_id, (*lpa).first);
-			if (ppa != NO_LPA) {
-				PRINT_ERROR("Calling address allocation for a previously allocated LPA during preconditioning!")
-			}
-			allocate_plane_for_preconditioning(stream_id, (*lpa).first, plane_address);
-			if (LPA_type(Utils::Logical_Address_Partitioning_Unit::Get_share_of_physcial_pages_in_plane(plane_address.ChannelID, plane_address.ChipID, plane_address.DieID, plane_address.PlaneID) * page_no_per_plane)
-				> assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) {
-				assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].push_back((*lpa).first);
-				lpa++;
-			} else {
-				lpa_list.erase(lpa++);
-			}
-		}
+		// //First: distribute LPAs to planes
+		// NVM::FlashMemory::Physical_Page_Address plane_address;
+		// for (auto lpa = lpa_list.begin(); lpa != lpa_list.end();) {
+		// 	if ((*lpa).first >= domains[stream_id]->Total_logical_pages_no) {
+		// 		PRINT_ERROR("Out of range LPA specified for preconditioning! LPA shoud be smaller than " << domains[stream_id]->Total_logical_pages_no << ", but it is " << (*lpa).first)
+		// 	}
+		// 	PPA_type ppa = domains[stream_id]->Get_ppa_for_preconditioning(stream_id, (*lpa).first);
+		// 	if (ppa != NO_LPA) {
+		// 		PRINT_ERROR("Calling address allocation for a previously allocated LPA during preconditioning!")
+		// 	}
+		// 	allocate_plane_for_preconditioning(stream_id, (*lpa).first, plane_address);
+		// 	if (LPA_type(Utils::Logical_Address_Partitioning_Unit::Get_share_of_physcial_pages_in_plane(plane_address.ChannelID, plane_address.ChipID, plane_address.DieID, plane_address.PlaneID) * page_no_per_plane)
+		// 		> assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) {
+		// 		assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].push_back((*lpa).first);
+		// 		lpa++;
+		// 	} else {
+		// 		lpa_list.erase(lpa++);
+		// 	}
+		// }
 
-		//Second: distribute LPAs within planes based on the steady-state status of blocks
-		//unsigned int safe_guard_band = ftl->GC_and_WL_Unit->Get_minimum_number_of_free_pages_before_GC();
-		for (unsigned int channel_cntr = 0; channel_cntr < domains[stream_id]->Channel_no; channel_cntr++) {
-			for (unsigned int chip_cntr = 0; chip_cntr < domains[stream_id]->Chip_no; chip_cntr++) {
-				for (unsigned int die_cntr = 0; die_cntr < domains[stream_id]->Die_no; die_cntr++) {
-					for (unsigned int plane_cntr = 0; plane_cntr < domains[stream_id]->Plane_no; plane_cntr++) {
-						plane_address.ChannelID = domains[stream_id]->Channel_ids[channel_cntr];
-						plane_address.ChipID = domains[stream_id]->Chip_ids[chip_cntr];
-						plane_address.DieID = domains[stream_id]->Die_ids[die_cntr];
-						plane_address.PlaneID = domains[stream_id]->Plane_ids[plane_cntr];
+		// //Second: distribute LPAs within planes based on the steady-state status of blocks
+		// //unsigned int safe_guard_band = ftl->GC_and_WL_Unit->Get_minimum_number_of_free_pages_before_GC();
+		// for (unsigned int channel_cntr = 0; channel_cntr < domains[stream_id]->Channel_no; channel_cntr++) {
+		// 	for (unsigned int chip_cntr = 0; chip_cntr < domains[stream_id]->Chip_no; chip_cntr++) {
+		// 		for (unsigned int die_cntr = 0; die_cntr < domains[stream_id]->Die_no; die_cntr++) {
+		// 			for (unsigned int plane_cntr = 0; plane_cntr < domains[stream_id]->Plane_no; plane_cntr++) {
+		// 				plane_address.ChannelID = domains[stream_id]->Channel_ids[channel_cntr];
+		// 				plane_address.ChipID = domains[stream_id]->Chip_ids[chip_cntr];
+		// 				plane_address.DieID = domains[stream_id]->Die_ids[die_cntr];
+		// 				plane_address.PlaneID = domains[stream_id]->Plane_ids[plane_cntr];
 
-						unsigned int physical_block_consumption_goal = (unsigned int)(double(block_no_per_plane - ftl->GC_and_WL_Unit->Get_minimum_number_of_free_pages_before_GC() / 2)
-							* Utils::Logical_Address_Partitioning_Unit::Get_share_of_physcial_pages_in_plane(plane_address.ChannelID, plane_address.ChipID, plane_address.DieID, plane_address.PlaneID));
+		// 				unsigned int physical_block_consumption_goal = (unsigned int)(double(block_no_per_plane - ftl->GC_and_WL_Unit->Get_minimum_number_of_free_pages_before_GC() / 2)
+		// 					* Utils::Logical_Address_Partitioning_Unit::Get_share_of_physcial_pages_in_plane(plane_address.ChannelID, plane_address.ChipID, plane_address.DieID, plane_address.PlaneID));
 
-						//Adjust the average
-						double model_average = 0;
-						std::vector<double> adjusted_steady_state_distribution;
-						//Check if probability distribution is correct 
-						for (unsigned int i = 0; i <= pages_no_per_block; i++) {
-							model_average += steady_state_distribution[i] * double(i) / double(pages_no_per_block);
-							adjusted_steady_state_distribution.push_back(steady_state_distribution[i]);
-						}
-						double real_average = double(assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) / (physical_block_consumption_goal * pages_no_per_block);
-						if (std::abs(model_average - real_average) * pages_no_per_block > 0.9999) {
-							int displacement_index = int((real_average - model_average) * pages_no_per_block);
-							if (displacement_index > 0) {
-								for (int i = 0; i < displacement_index; i++) {
-									adjusted_steady_state_distribution[i] = 0;
-								}
-								for (int i = displacement_index; i < int(pages_no_per_block); i++) {
-									adjusted_steady_state_distribution[i] = steady_state_distribution[i - displacement_index];
-								}
-							} else {
-								displacement_index *= -1;
-								for (int i = 0; i < int(pages_no_per_block) - displacement_index; i++) {
-									adjusted_steady_state_distribution[i] = steady_state_distribution[i + displacement_index];
-								}
-								for (int i = int(pages_no_per_block) - displacement_index; i < int(pages_no_per_block); i++) {
-									adjusted_steady_state_distribution[i] = 0;
-								}
-							}
-						}
+		// 				//Adjust the average
+		// 				double model_average = 0;
+		// 				std::vector<double> adjusted_steady_state_distribution;
+		// 				//Check if probability distribution is correct 
+		// 				for (unsigned int i = 0; i <= pages_no_per_block; i++) {
+		// 					model_average += steady_state_distribution[i] * double(i) / double(pages_no_per_block);
+		// 					adjusted_steady_state_distribution.push_back(steady_state_distribution[i]);
+		// 				}
+		// 				double real_average = double(assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) / (physical_block_consumption_goal * pages_no_per_block);
+		// 				if (std::abs(model_average - real_average) * pages_no_per_block > 0.9999) {
+		// 					int displacement_index = int((real_average - model_average) * pages_no_per_block);
+		// 					if (displacement_index > 0) {
+		// 						for (int i = 0; i < displacement_index; i++) {
+		// 							adjusted_steady_state_distribution[i] = 0;
+		// 						}
+		// 						for (int i = displacement_index; i < int(pages_no_per_block); i++) {
+		// 							adjusted_steady_state_distribution[i] = steady_state_distribution[i - displacement_index];
+		// 						}
+		// 					} else {
+		// 						displacement_index *= -1;
+		// 						for (int i = 0; i < int(pages_no_per_block) - displacement_index; i++) {
+		// 							adjusted_steady_state_distribution[i] = steady_state_distribution[i + displacement_index];
+		// 						}
+		// 						for (int i = int(pages_no_per_block) - displacement_index; i < int(pages_no_per_block); i++) {
+		// 							adjusted_steady_state_distribution[i] = 0;
+		// 						}
+		// 					}
+		// 				}
 
-						//Check if it is possible to find a PPA for each LPA with current proability assignments 
-						unsigned int total_valid_pages = 0;
-						for (int valid_pages_in_block = pages_no_per_block; valid_pages_in_block >= 0; valid_pages_in_block--) {
-							total_valid_pages += valid_pages_in_block * (unsigned int)(adjusted_steady_state_distribution[valid_pages_in_block] * physical_block_consumption_goal);
-						}
-						unsigned int pages_need_PPA = 0;//The number of LPAs that remain unassigned due to imperfect probability assignments
-						if (total_valid_pages < assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) {
-							pages_need_PPA = (unsigned int)(assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) - total_valid_pages;
-						}
+		// 				//Check if it is possible to find a PPA for each LPA with current proability assignments 
+		// 				unsigned int total_valid_pages = 0;
+		// 				for (int valid_pages_in_block = pages_no_per_block; valid_pages_in_block >= 0; valid_pages_in_block--) {
+		// 					total_valid_pages += valid_pages_in_block * (unsigned int)(adjusted_steady_state_distribution[valid_pages_in_block] * physical_block_consumption_goal);
+		// 				}
+		// 				unsigned int pages_need_PPA = 0;//The number of LPAs that remain unassigned due to imperfect probability assignments
+		// 				if (total_valid_pages < assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) {
+		// 					pages_need_PPA = (unsigned int)(assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size()) - total_valid_pages;
+		// 				}
 						
-						unsigned int remaining_blocks_to_consume = physical_block_consumption_goal;
-						for (int valid_pages_in_block = pages_no_per_block; valid_pages_in_block >= 0; valid_pages_in_block--) {
-							unsigned int block_no_with_x_valid_page = (unsigned int)(adjusted_steady_state_distribution[valid_pages_in_block] * physical_block_consumption_goal);
-							if (block_no_with_x_valid_page > 0 && pages_need_PPA > 0) {
-								block_no_with_x_valid_page += (pages_need_PPA / valid_pages_in_block) + (pages_need_PPA % valid_pages_in_block == 0 ? 0 : 1);
-								pages_need_PPA = 0;
-							}
+		// 				unsigned int remaining_blocks_to_consume = physical_block_consumption_goal;
+		// 				for (int valid_pages_in_block = pages_no_per_block; valid_pages_in_block >= 0; valid_pages_in_block--) {
+		// 					unsigned int block_no_with_x_valid_page = (unsigned int)(adjusted_steady_state_distribution[valid_pages_in_block] * physical_block_consumption_goal);
+		// 					if (block_no_with_x_valid_page > 0 && pages_need_PPA > 0) {
+		// 						block_no_with_x_valid_page += (pages_need_PPA / valid_pages_in_block) + (pages_need_PPA % valid_pages_in_block == 0 ? 0 : 1);
+		// 						pages_need_PPA = 0;
+		// 					}
 
-							if (block_no_with_x_valid_page <= remaining_blocks_to_consume) {
-								remaining_blocks_to_consume -= block_no_with_x_valid_page;
-							} else {
-								block_no_with_x_valid_page = remaining_blocks_to_consume;
-								remaining_blocks_to_consume = 0;
-							}
+		// 					if (block_no_with_x_valid_page <= remaining_blocks_to_consume) {
+		// 						remaining_blocks_to_consume -= block_no_with_x_valid_page;
+		// 					} else {
+		// 						block_no_with_x_valid_page = remaining_blocks_to_consume;
+		// 						remaining_blocks_to_consume = 0;
+		// 					}
 
-							for (unsigned int block_cntr = 0; block_cntr < block_no_with_x_valid_page; block_cntr++) {
-								//Assign physical addresses
-								std::vector<NVM::FlashMemory::Physical_Page_Address> addresses;
-								if (assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size() < valid_pages_in_block) {
-									valid_pages_in_block = int(assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size());
-								}
-								for (int page_cntr = 0; page_cntr < valid_pages_in_block; page_cntr++) {
-									NVM::FlashMemory::Physical_Page_Address addr(plane_address.ChannelID, plane_address.ChipID, plane_address.DieID, plane_address.PlaneID, 0, 0);
-									addresses.push_back(addr);
-								}
-								block_manager->Allocate_Pages_in_block_and_invalidate_remaining_for_preconditioning(stream_id, plane_address, addresses);
+		// 					for (unsigned int block_cntr = 0; block_cntr < block_no_with_x_valid_page; block_cntr++) {
+		// 						//Assign physical addresses
+		// 						std::vector<NVM::FlashMemory::Physical_Page_Address> addresses;
+		// 						if (assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size() < valid_pages_in_block) {
+		// 							valid_pages_in_block = int(assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size());
+		// 						}
+		// 						for (int page_cntr = 0; page_cntr < valid_pages_in_block; page_cntr++) {
+		// 							NVM::FlashMemory::Physical_Page_Address addr(plane_address.ChannelID, plane_address.ChipID, plane_address.DieID, plane_address.PlaneID, 0, 0);
+		// 							addresses.push_back(addr);
+		// 						}
+		// 						block_manager->Allocate_Pages_in_block_and_invalidate_remaining_for_preconditioning(stream_id, plane_address, addresses);
 
-								//Update mapping table
-								for (auto const &address : addresses) {
-									LPA_type lpa = assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].back();
-									assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].pop_back();
-									PPA_type ppa = Convert_address_to_ppa(address);
-									flash_controller->Change_memory_status_preconditioning(&address, &lpa);
-									domains[stream_id]->GlobalMappingTable[lpa].PPA = ppa;
-									domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap = (*lpa_list.find(lpa)).second;
-									domains[stream_id]->GlobalMappingTable[lpa].TimeStamp = 0;
-								}
-							}
-						}
-						if (assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size() > 0) {
-							PRINT_ERROR("It is not possible to assign PPA to all LPAs in Allocate_address_for_preconditioning! It is not safe to continue preconditioning." << assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size())
-						}
-					}
-				}
-			}
-		}
+		// 						//Update mapping table
+		// 						for (auto const &address : addresses) {
+		// 							LPA_type lpa = assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].back();
+		// 							assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].pop_back();
+		// 							PPA_type ppa = Convert_address_to_ppa(address);
+		// 							flash_controller->Change_memory_status_preconditioning(&address, &lpa);
+		// 							domains[stream_id]->GlobalMappingTable[lpa].PPA = ppa;
+		// 							domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap = (*lpa_list.find(lpa)).second;
+		// 							domains[stream_id]->GlobalMappingTable[lpa].TimeStamp = 0;
+		// 						}
+		// 					}
+		// 				}
+		// 				if (assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size() > 0) {
+		// 					PRINT_ERROR("It is not possible to assign PPA to all LPAs in Allocate_address_for_preconditioning! It is not safe to continue preconditioning." << assigned_lpas[plane_address.ChannelID][plane_address.ChipID][plane_address.DieID][plane_address.PlaneID].size())
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
 
-		for (unsigned int channel_cntr = 0; channel_cntr < channel_count; channel_cntr++) {
-			for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++) {
-				for (unsigned int die_cntr = 0; die_cntr < die_no_per_chip; die_cntr++) {
-					delete[] assigned_lpas[channel_cntr][chip_cntr][die_cntr];
-				}
-				delete[] assigned_lpas[channel_cntr][chip_cntr];
-			}
-			delete[] assigned_lpas[channel_cntr];
-		}
-		delete[] assigned_lpas;
+		// for (unsigned int channel_cntr = 0; channel_cntr < channel_count; channel_cntr++) {
+		// 	for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++) {
+		// 		for (unsigned int die_cntr = 0; die_cntr < die_no_per_chip; die_cntr++) {
+		// 			delete[] assigned_lpas[channel_cntr][chip_cntr][die_cntr];
+		// 		}
+		// 		delete[] assigned_lpas[channel_cntr][chip_cntr];
+		// 	}
+		// 	delete[] assigned_lpas[channel_cntr];
+		// }
+		// delete[] assigned_lpas;
 	}
 
 	void Address_Mapping_Unit_Page_Level::Allocate_new_page_for_gc(NVM_Transaction_Flash_WR* transaction, bool is_translation_page)
