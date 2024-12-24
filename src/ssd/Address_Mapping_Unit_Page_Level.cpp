@@ -14,8 +14,6 @@ namespace SSD_Components
 
 	Cached_Mapping_Table::~Cached_Mapping_Table()
 	{
-
-
 		auto entry = addressMap.begin();
 		while (entry != addressMap.end()) {
 			delete (*entry).second;
@@ -445,6 +443,7 @@ namespace SSD_Components
 				allocate_plane_for_translation_write(dummy_tr);
 				allocate_page_in_plane_for_translation_write(dummy_tr, (MVPN_type)dummy_tr->LPA, false);
 				flash_controller->Change_flash_page_status_for_preconditioning(dummy_tr->Address, dummy_tr->LPA);
+				block_manager->Program_transaction_serviced(dummy_tr->Address);
 			}
 		}
 		mapping_table_stored_on_flash = true;
@@ -597,6 +596,8 @@ namespace SSD_Components
 		if (transaction->Type == Transaction_Type::READ) {
 			if (ppa == NO_PPA) {
 				ppa = online_create_entry_for_reads(transaction->LPA, streamID, transaction->Address, ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap);
+				block_manager->Program_transaction_serviced(transaction->Address);
+				flash_controller->Change_flash_page_status_for_preconditioning(transaction->Address, transaction->LPA);
 			}
 			transaction->PPA = ppa;
 			Convert_ppa_to_address(transaction->PPA, transaction->Address);
@@ -1625,6 +1626,11 @@ namespace SSD_Components
 			allocate_plane_for_translation_write(writeTR);
 			allocate_page_in_plane_for_translation_write(writeTR, mvpn, false);
 			domains[stream_id]->DepartingMappingEntries.insert(get_MVPN(lpn, stream_id));
+
+			if(readTR != NULL){
+				readTR->RelatedWrite = writeTR;
+			}
+
 			ftl->TSU->Submit_transaction(writeTR);
 
 			Stats::Total_flash_reads_for_mapping++;
@@ -1786,8 +1792,8 @@ namespace SSD_Components
 					MVPN_type mpvn = (MVPN_type)flash_controller->Get_metadata(addr.ChannelID, addr.ChipID, addr.DieID, addr.PlaneID, addr.BlockID, addr.PageID);
 					if (domains[block->Stream_id]->GlobalTranslationDirectory[mpvn].MPPN != Convert_address_to_ppa(addr)) {
 						PRINT_ERROR("Inconsistency in the global translation directory when locking an MPVN!")
-						Set_barrier_for_accessing_mvpn(block->Stream_id, mpvn);
 					}
+					Set_barrier_for_accessing_mvpn(block->Stream_id, mpvn);
 				} else {
 					LPA_type lpa = flash_controller->Get_metadata(addr.ChannelID, addr.ChipID, addr.DieID, addr.PlaneID, addr.BlockID, addr.PageID);
 					LPA_type ppa = domains[block->Stream_id]->GlobalMappingTable[lpa].PPA;
@@ -1814,7 +1820,7 @@ namespace SSD_Components
 		//If there are read requests waiting behind the barrier, then MQSim assumes they can be serviced with the actual page data that is accessed during GC execution
 		auto read_tr = domains[stream_id]->Read_transactions_behind_LPA_barrier.find(lpa);
 		while (read_tr != domains[stream_id]->Read_transactions_behind_LPA_barrier.end()) {
-			handle_transaction_serviced_signal_from_PHY((*read_tr).second);
+			connected_transaction_serviced_signal_handler((*read_tr).second);
 			delete (*read_tr).second;
 			domains[stream_id]->Read_transactions_behind_LPA_barrier.erase(read_tr);
 			read_tr = domains[stream_id]->Read_transactions_behind_LPA_barrier.find(lpa);
@@ -1823,7 +1829,7 @@ namespace SSD_Components
 		//If there are write requests waiting behind the barrier, then MQSim assumes they can be serviced with the actual page data that is accessed during GC execution. This may not be 100% true for all write requests, but, to avoid more complexity in the simulation, we accept this assumption.
 		auto write_tr = domains[stream_id]->Write_transactions_behind_LPA_barrier.find(lpa);
 		while (write_tr != domains[stream_id]->Write_transactions_behind_LPA_barrier.end()) {
-			handle_transaction_serviced_signal_from_PHY((*write_tr).second);
+			connected_transaction_serviced_signal_handler((*write_tr).second);
 			delete (*write_tr).second;
 			domains[stream_id]->Write_transactions_behind_LPA_barrier.erase(write_tr);
 			write_tr = domains[stream_id]->Write_transactions_behind_LPA_barrier.find(lpa);
