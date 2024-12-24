@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <unordered_map>
-
+#include <vector>
 #include "Sim_Defs.h"
 #include "EventTree.h"
 #include "Sim_Object.h"
@@ -17,6 +17,7 @@ namespace MQSimEngine {
 		{
 			this->_EventList = new EventTree;
 			started = false;
+			waitingLoadPhaseFinish = false;
 		}
 
 		~Engine() {
@@ -35,15 +36,22 @@ namespace MQSimEngine {
 		void Stop_simulation();
 		bool Has_started();
 		bool Is_integrated_execution_mode();
+		void AttachClearStats(void(*ClearStats)());
+		void FinishLoadPhase(sim_time_type time, Sim_Object* io_flow);
+
+		sim_time_type loadMileStone;
 	private:
-		unsigned int logging_time_interval;
 		sim_time_type _sim_time;
-		sim_time_type print_timer;
 		EventTree* _EventList;
 		std::unordered_map<sim_object_id_type, Sim_Object*> _ObjectList;
 		bool stop;
 		bool started;
 		static Engine* _instance;
+
+		std::vector<std::pair<sim_time_type, Sim_Object*>> waitingRunPhaseFlowList;
+		bool waitingLoadPhaseFinish;
+		void StartRunPhase();
+		void(*ClearStats)();
 	};
 }
 

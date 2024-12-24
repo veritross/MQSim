@@ -48,7 +48,7 @@ namespace Host_Components
 					 uint16_t nvme_submission_queue_size, uint16_t nvme_completion_queue_size, IO_Flow_Priority_Class::Priority priority_class,
 					 sim_time_type stop_time, double initial_occupancy_ratio, unsigned int total_requets_to_be_generated,
 					 HostInterface_Types SSD_device_type, PCIe_Root_Complex *pcie_root_complex, SATA_HBA *sata_hba,
-					 bool enabled_logging, bool enabled_logging_2, sim_time_type logging_period, std::string logging_file_path);
+					 bool enabled_logging, sim_time_type logging_period, std::string logging_file_path);
 		~IO_Flow_Base();
 		void Start_simulation();
 		IO_Flow_Priority_Class::Priority Priority_class() { return priority_class; }
@@ -62,6 +62,8 @@ namespace Host_Components
 		uint32_t Get_generated_request_count();
 		uint32_t Get_serviced_request_count();//in microseconds
 		uint32_t Get_device_response_time();//in microseconds
+		uint32_t Get_read_device_response_time();
+		uint32_t Get_write_device_response_time();
 		uint32_t Get_min_device_response_time();//in microseconds
 		uint32_t Get_max_device_response_time();//in microseconds
 		uint32_t Get_end_to_end_request_delay();//in microseconds
@@ -70,6 +72,8 @@ namespace Host_Components
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 		virtual void Get_statistics(Utils::Workload_Statistics& stats, LPA_type(*Convert_host_logical_address_to_device_address)(LHA_type lha),
 			page_status_type(*Find_NVM_subunit_access_bitmap)(LHA_type lha)) = 0;
+
+		void ClearStats();
 	protected:
 		uint16_t flow_id;
 		double initial_occupancy_ratio;//The initial amount of valid logical pages when pereconditioning is performed
@@ -110,7 +114,6 @@ namespace Host_Components
 
 		//Variables used to log response time changes
 		bool enabled_logging;
-		bool enabled_logging_2;
 		sim_time_type logging_period;
 		sim_time_type next_logging_milestone;
 		std::string logging_file_path;

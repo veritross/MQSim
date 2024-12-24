@@ -99,7 +99,14 @@ namespace NVM
 			return Dies[die_id]->Planes[plane_id]->Blocks[block_id]->Pages[page_id].Metadata.LPA;
 		}
 
-		void Flash_Chip::start_command_execution(Flash_Command* command)
+        void Flash_Chip::ClearStats()
+        {
+			STAT_totalExecTime = 0;
+			STAT_totalXferTime = 0;
+			STAT_totalOverlappedXferExecTime = 0;
+        }
+
+        void Flash_Chip::start_command_execution(Flash_Command* command)
 		{
 			Die* targetDie = Dies[command->Address[0].DieID];
 
@@ -279,19 +286,19 @@ namespace NVM
 			xmlwriter.Write_attribute_string_inline(attr, val);
 
 			attr = "Fraction_of_Time_in_Execution";
-			val = std::to_string(STAT_totalExecTime / double(Simulator->Time()));
+			val = std::to_string(STAT_totalExecTime / ((double)Simulator->Time() - Simulator->loadMileStone));
 			xmlwriter.Write_attribute_string_inline(attr, val);
 
 			attr = "Fraction_of_Time_in_DataXfer";
-			val = std::to_string(STAT_totalXferTime / double(Simulator->Time()));
+			val = std::to_string(STAT_totalXferTime / ((double)Simulator->Time() - Simulator->loadMileStone));
 			xmlwriter.Write_attribute_string_inline(attr, val);
 
 			attr = "Fraction_of_Time_in_DataXfer_and_Execution";
-			val = std::to_string(STAT_totalOverlappedXferExecTime / double(Simulator->Time()));
+			val = std::to_string(STAT_totalOverlappedXferExecTime / ((double)Simulator->Time() - Simulator->loadMileStone));
 			xmlwriter.Write_attribute_string_inline(attr, val);
 
 			attr = "Fraction_of_Time_Idle";
-			val = std::to_string((Simulator->Time() - STAT_totalOverlappedXferExecTime - STAT_totalXferTime) / double(Simulator->Time()));
+			val = std::to_string((((double)Simulator->Time() - Simulator->loadMileStone) - STAT_totalOverlappedXferExecTime - STAT_totalXferTime) / ((double)Simulator->Time() - Simulator->loadMileStone));
 			xmlwriter.Write_attribute_string_inline(attr, val);
 		
 			xmlwriter.Write_end_element_tag();

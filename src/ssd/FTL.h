@@ -40,6 +40,8 @@ namespace SSD_Components
 		TSU_Base * TSU;
 		NVM_PHY_ONFI* PHY;
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+
+		void ClearStats();
 	private:
 		unsigned int channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die;
 		unsigned int block_no_per_plane, page_no_per_block, page_size_in_sectors;

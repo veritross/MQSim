@@ -14,6 +14,14 @@
 
 using namespace std;
 
+SSD_Device* G_SSD;
+Host_System* G_Host;
+
+void ClearStatsFnc(){
+	G_SSD->ClearStats();
+	G_Host->ClearStats();
+}
+
 
 void command_line_args(char* argv[], string& input_file_path, string& workload_file_path)
 {
@@ -295,7 +303,10 @@ int main(int argc, char* argv[])
 		exec_params->Host_Configuration.Input_file_path = workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of("."));//Create Host_System based on the specified parameters
 		Host_System host(&exec_params->Host_Configuration, exec_params->SSD_Device_Configuration.Enabled_Preconditioning, ssd.Host_interface);
 		host.Attach_ssd_device(&ssd);
-				delete exec_params;
+
+		G_SSD = &ssd;
+		G_Host = &host;
+		Simulator->AttachClearStats(ClearStatsFnc);
 		Simulator->Start_simulation();
 		for (auto io_flow_def = (*io_scen)->begin(); io_flow_def != (*io_scen)->end(); io_flow_def++) {
 			delete *io_flow_def;

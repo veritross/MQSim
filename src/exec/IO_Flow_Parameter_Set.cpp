@@ -408,8 +408,12 @@ void IO_Flow_Parameter_Set_Trace_Based::XML_serialize(Utils::XmlWriter& xmlwrite
 	xmlwriter.Write_open_tag(tmp);
 	IO_Flow_Parameter_Set::XML_serialize(xmlwriter);
 
-	std::string attr = "File_Path";
-	std::string val = File_Path;
+	std::string attr = "Load_File_Path";
+	std::string val = Load_File_Path;
+	xmlwriter.Write_attribute_string(attr, val);
+
+	attr = "File_Path";
+	val = File_Path;
 	xmlwriter.Write_attribute_string(attr, val);
 
 	attr = "Percentage_To_Be_Executed";
@@ -449,6 +453,8 @@ void IO_Flow_Parameter_Set_Trace_Based::XML_deserialize(rapidxml::xml_node<> *no
 			} else if (strcmp(param->name(), "Percentage_To_Be_Executed") == 0) {
 				std::string val = param->value();
 				Percentage_To_Be_Executed = std::stoi(val);
+			} else if (strcmp(param->name(), "Load_File_Path") == 0) {
+				Load_File_Path = param->value();
 			} else if (strcmp(param->name(), "File_Path") == 0) {
 				File_Path = param->value();
 			} else if (strcmp(param->name(), "Time_Unit") == 0) {

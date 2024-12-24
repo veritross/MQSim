@@ -88,4 +88,8 @@ namespace SSD_Components
 
 		xmlwriter.Write_end_element_tag();
 	}
+    void Flash_Transaction_Queue::ClearStats()
+    {
+		RequestQueueProbe.ClearStats();
+    }
 }
