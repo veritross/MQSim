@@ -31,7 +31,7 @@ namespace MQSimEngine {
 		void AddObject(Sim_Object* obj);
 		Sim_Object* GetObject(sim_object_id_type object_id);
 		void RemoveObject(Sim_Object* obj);
-		void Start_simulation(void* ssd, void* host_system, std::string output_name, void(*print_func) (void*, void*, std::string, sim_time_type));
+		void Start_simulation();
 		void Stop_simulation();
 		bool Has_started();
 		bool Is_integrated_execution_mode();

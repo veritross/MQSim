@@ -8,15 +8,15 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/root/MQSim/MQSim",
+            "program": "${workspaceFolder}/MQSim",
             "args": [
                 "-i",
-                "/root/MQSim/ssdconfig.xml",
+                "${workspaceFolder}/ssdconfig_test.xml",
                 "-w",
-                "/root/MQSim/workload.xml"
+                "${workspaceFolder}/workload_test.xml"
             ],
             "stopAtEntry": false,
-            "cwd": "${fileDirname}",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",

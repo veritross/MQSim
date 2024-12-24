@@ -253,20 +253,6 @@ void collect_results(SSD_Device& ssd, Host_System& host, const char* output_file
 	}
 }
 
-void collect_results_for_seconds(void* ssd, void* host_system, string output_name, sim_time_type timer){
-	Utils::XmlWriter xmlwriter;
-	mkdir(output_name.c_str(), 0766);
-	xmlwriter.Open((output_name + "/" + to_string(timer) + ".xml").c_str());
-
-	std::string tmp("MQSim_Results");
-	xmlwriter.Write_open_tag(tmp);
-
-	((Host_System*)host_system)->Report_results_in_XML("", xmlwriter);
-	((SSD_Device*)ssd)->Report_results_in_XML("", xmlwriter);
-
-	xmlwriter.Write_close_tag();
-}
-
 void print_help()
 {
 	cout << "MQSim - SSD simulator with both NVMe and SATA host interface behavior, see ReadMe.md for details" << endl <<
@@ -310,7 +296,7 @@ int main(int argc, char* argv[])
 		Host_System host(&exec_params->Host_Configuration, exec_params->SSD_Device_Configuration.Enabled_Preconditioning, ssd.Host_interface);
 		host.Attach_ssd_device(&ssd);
 				delete exec_params;
-		Simulator->Start_simulation(&ssd, &host, workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr), collect_results_for_seconds);
+		Simulator->Start_simulation();
 		for (auto io_flow_def = (*io_scen)->begin(); io_flow_def != (*io_scen)->end(); io_flow_def++) {
 			delete *io_flow_def;
 		}
@@ -324,17 +310,12 @@ int main(int argc, char* argv[])
 
 		PRINT_MESSAGE("Writing results to output file .......");
 		collect_results(ssd, host, (workload_defs_file_path.substr(0, workload_defs_file_path.find_last_of(".")) + "_scenario_" + std::to_string(cntr) + ".xml").c_str());
-
-		for (auto io_flow_def = (*io_scen)->begin(); io_flow_def != (*io_scen)->end(); io_flow_def++) {
-			delete *io_flow_def;
-		}
-		delete *io_scen;
 	}
 	delete exec_params;
-	cout << "Simulation complete; Press any key to exit." << endl;
+	// cout << "Simulation complete; Press any key to exit." << endl;
 
 
-	cin.get(); // Disable if you prefer batch runs
+	// cin.get(); // Disable if you prefer batch runs
 
 	return 0;
 }
