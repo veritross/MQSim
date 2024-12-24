@@ -6,6 +6,7 @@
 #include "NVM_Transaction_Flash.h"
 #include "NVM_Transaction_Flash_RD.h"
 #include "NVM_Transaction_Flash_ER.h"
+#include "MQ_types.h"
 
 namespace SSD_Components
 {
@@ -34,6 +35,8 @@ namespace SSD_Components
 		page_status_type write_sectors_bitmap;
 		data_timestamp_type DataTimeStamp;
 		WriteExecutionModeType ExecutionMode;
+
+		level_type level;
 	};
 }
 

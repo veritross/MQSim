@@ -5,16 +5,11 @@
 
 namespace SSD_Components{
 
-    const uint32_t CON::ENTRY_UNIT = 100;
-    const uint32_t CON::REQS_PER_INTERVAL = 16384;
+    const uint32_t CON::TIMETABLE_ENTRY_UNIT = 100;
     const lui_timestamp CON::TIMESTAMP_NOT_ACCESSED = UINT64_MAX;
     const uint8_t CON::HOT_FILTER_BITS_COUNT = 2;
 
-    const uint8_t CON::NOT_NOTICIBLE_REDUCTION_THRESHOLD = 5;
-    const double CON::NOTICIBLE_REDUCTION_CRITERIA = 0.005;
-    const double CON::UID_SELECTION_THRESHOLD = 0.005;
-
-    const lui_timestamp CON::SELECT_EPOCH_TIMESTAMP = 1e6;
+    const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 1e5;
 
     HotFilter::HotFilter(uint64_t noOfBlocks)
     {
@@ -22,8 +17,6 @@ namespace SSD_Components{
         for(uint32_t vector = 0; vector != noOfBlocks * CON::HOT_FILTER_BITS_COUNT / 64; vector++){
             filter[vector] = 0;
         }
-        totalBlocksAge = 0;
-        totalBlocksCount = 0;
     }
 
     HotFilter::~HotFilter()
@@ -31,26 +24,26 @@ namespace SSD_Components{
         delete[] filter;
     }
 
-
-    double UID::createUID(const std::vector<uint64_t> &intervalCountTable, uint64_t totalReqs, uint64_t avgResTime, double lastBlocksAvgValidPagesRatio)
+    const double CON::NOTICIBLE_REDUCTION_CRITERIA = 0.005;
+    const uint8_t CON::NOT_NOTICIBLE_REDUCTION_THRESHOLD = 5;
+    double UID::createUID(const std::vector<uint64_t> &intervalCountTable, uint64_t totalReqs, uint64_t hotAvgResTime, double lastBlocksAvgValidPagesRatio)
     {
-
         auto split = [&]() -> double {
             uint32_t& prevGroupSize = this->groupConf.back();
             this->groupConf.push_back(prevGroupSize);
             uint32_t& newGroupSize = this->groupConf.back(); 
             prevGroupSize = 0;
 
-            double currentWAF = 0.0;
+            double curWAF = 0.0;
             double prevWAF = 0.0;
 
             while(true){
                 prevGroupSize++;
                 newGroupSize--;
 
-                prevWAF = currentWAF;
-                currentWAF = this->getWAF(intervalCountTable, totalReqs, avgResTime, lastBlocksAvgValidPagesRatio);
-                if(currentWAF > prevWAF && !CON::IS_ZERO(prevWAF)){
+                prevWAF = curWAF;
+                curWAF = this->getWAF(intervalCountTable, totalReqs, hotAvgResTime, lastBlocksAvgValidPagesRatio);
+                if((curWAF > prevWAF) && !CON::IS_ZERO(prevWAF)){
                     prevGroupSize--;
                     newGroupSize++;
                     return prevWAF;
@@ -61,20 +54,19 @@ namespace SSD_Components{
                     return 0.0;
                 }
             }
-            
         };
 
-        double currentWAF = 0.0;
+        double curWAF = 0.0;
         double prevWAF = 0.0;
         uint8_t notNoticibleReductionCount = 0;
 
         while(true){
-            prevWAF = currentWAF;
-            currentWAF = split();
-            if(CON::IS_ZERO(currentWAF)) break;
+            prevWAF = curWAF;
+            curWAF = split();
+            if(CON::IS_ZERO(curWAF)) break;
 
             if(!CON::IS_ZERO(prevWAF)){
-                if(currentWAF > prevWAF * (1.0 - CON::NOTICIBLE_REDUCTION_CRITERIA)){
+                if(curWAF > prevWAF * (1.0 - CON::NOTICIBLE_REDUCTION_CRITERIA)){
                     notNoticibleReductionCount++;
                 } else{
                     notNoticibleReductionCount = 0;
@@ -86,34 +78,35 @@ namespace SSD_Components{
             }
         }
 
-        return currentWAF;
+        return curWAF;
     }
     
-    double UID::getWAF(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs, uint64_t avgResTime, double lastBlocksAvgValidPagesRatio)
+    double UID::getWAF(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs, uint64_t hotAvgResTime, double lastBlocksAvgValidPagesRatio)
     {
+        // 4.4 Estimating Transition Probabilities.
         double sumOfP = 0.0;
         std::vector<double> p;
         p.resize(groupConf.size(), 0.0);
 
+        uint32_t intervalCountTableIdx = 0;
 
-        for(uint32_t intervalCountTableIdx = 0; intervalCountTableIdx < avgResTime; intervalCountTableIdx++){
+        // Hot P.
+        for(; intervalCountTableIdx < hotAvgResTime; intervalCountTableIdx++){
             p.at(0) += ((double)intervalCountTable.at(intervalCountTableIdx) / (double)totalReqs);
         }
+        sumOfP += p.at(0);
 
-        uint32_t currentWaitingPeriod = groupConf.at(1);
-        uint32_t prevWaitingPeriod = 0;
+        uint32_t waitingPeriod = intervalCountTableIdx;
         for(uint32_t groupNumber = 1; groupNumber < groupConf.size(); groupNumber++){
-            for(uint32_t intervalCountTableIdx = prevWaitingPeriod; intervalCountTableIdx < currentWaitingPeriod; intervalCountTableIdx++){
+            waitingPeriod = groupConf.at(groupNumber) / (1.0 - sumOfP);
+            for(; intervalCountTableIdx < waitingPeriod; intervalCountTableIdx++){
                 p.at(groupNumber) += ((double)intervalCountTable.at(intervalCountTableIdx) / (double)totalReqs);
             }
             sumOfP += p.at(groupNumber);
-            prevWaitingPeriod = currentWaitingPeriod;
-            currentWaitingPeriod = groupConf.at(groupNumber) * (1.0 - sumOfP);
         }
-        p.at(1) -= p.at(0);
 
         if(!CON::IS_ZERO(1.0 - sumOfP)){
-            PRINT_ERROR("Sum of P is not 1 " << sumOfP)
+            PRINT_ERROR("Sum of P is not 1 but " << sumOfP)
         }
 
         return MarkovChain(p, lastBlocksAvgValidPagesRatio);
@@ -122,60 +115,67 @@ namespace SSD_Components{
 
     const double UID::MarkovChain(const std::vector<double>& p, double lastBlocksAvgValidPagesRatio)
     {
-        uint32_t lastNodeIdx = p.size() - 1;
-        uint32_t freeNodeIdx = p.size();
+        // 4.3. Prediction of WAF using MCAM.
         double remainingP = 1.0;
 
         //1. G(n) -> G(n + 1).
         //2. G(n) -> Free.
         std::vector<std::pair<double, double>> transitionProb;
-        transitionProb.resize(p.size() + 1);
+        transitionProb.resize(p.size());
 
         //1. Free -> G(hot).
         //2. Free -> G(1).
-        transitionProb.at(freeNodeIdx) = {p.at(0), 1.0 - p.at(0)};
+        std::pair<double, double> freeNode = {p.at(0), 1.0 - p.at(0)};
 
         //All blocks are also assumed to be invali-dated in 𝐻𝑂𝑇.
         transitionProb.at(0) = {0, 1.0};
         remainingP -= p.at(0);
 
         for(int i = 1; i < transitionProb.size() - 1; i++){
-            double curProb = (remainingP - p.at(i)) / remainingP;
-            transitionProb.at(i) = {curProb, 1.0 - curProb};
+            double probToNextGroup = (remainingP - p.at(i)) / remainingP;
+            transitionProb.at(i) = {probToNextGroup, 1.0 - probToNextGroup};
             remainingP -= p.at(i);
         }
-        transitionProb.at(lastNodeIdx) = {lastBlocksAvgValidPagesRatio, 1.0 - lastBlocksAvgValidPagesRatio};
+        transitionProb.back() = {lastBlocksAvgValidPagesRatio, 1.0 - lastBlocksAvgValidPagesRatio};
 
-        std::vector<double>* curNodes = new std::vector<double>();
-        std::vector<double>* nextNodes = new std::vector<double>();
-        curNodes->resize(p.size() + 1, 0.0);
-        nextNodes->resize(p.size() + 1, 0.0);
-        curNodes->at(freeNodeIdx) = 100.0;
+        std::vector<double>* nodesCurEpoch = new std::vector<double>();
+        std::vector<double>* nodesNextEpoch = new std::vector<double>();
+        nodesCurEpoch->resize(p.size(), 0.0);
+        nodesNextEpoch->resize(p.size(), 0.0);
+
+        double freeNodeCurEpoch = 100.0;
+        double freeNodeNextEpoch = 0.0;
 
         const int numIterations = 1000;
         for (int iter = 0; iter < numIterations; iter++) {
-            nextNodes->at(0) = curNodes->at(freeNodeIdx) * transitionProb.at(freeNodeIdx).first;
-            nextNodes->at(1) = curNodes->at(freeNodeIdx) * transitionProb.at(freeNodeIdx).second;
-            for(uint32_t nodeIdx = 1; nodeIdx < lastNodeIdx; nodeIdx++){
-                nextNodes->at(nodeIdx + 1) = curNodes->at(nodeIdx) * transitionProb.at(nodeIdx).first;
-                nextNodes->at(freeNodeIdx) += curNodes->at(nodeIdx) * transitionProb.at(nodeIdx).second;
+            nodesNextEpoch->at(0) = freeNodeCurEpoch * freeNode.first;
+            nodesNextEpoch->at(1) = freeNodeCurEpoch * freeNode.second;
+            for(uint32_t nodeIdx = 1; nodeIdx < transitionProb.size() - 1; nodeIdx++){
+                nodesNextEpoch->at(nodeIdx + 1) = nodesNextEpoch->at(nodeIdx) * transitionProb.at(nodeIdx).first;
+                freeNodeNextEpoch += nodesCurEpoch->at(nodeIdx) * transitionProb.at(nodeIdx).second;
             }
-            nextNodes->at(lastNodeIdx) += curNodes->at(lastNodeIdx) * transitionProb.at(lastNodeIdx).first;
-            nextNodes->at(freeNodeIdx) += curNodes->at(lastNodeIdx) * transitionProb.at(lastNodeIdx).second;
+            nodesNextEpoch->back() += nodesCurEpoch->back() * transitionProb.back().first;
+            freeNodeNextEpoch += nodesCurEpoch->back() * transitionProb.back().second;
 
-            auto tmp = nextNodes;
-            nextNodes = curNodes;
-            curNodes = tmp;
-            std::fill(nextNodes->begin(), nextNodes->end(), 0.0);
+            auto tmp = nodesNextEpoch;
+            nodesNextEpoch = nodesCurEpoch;
+            nodesCurEpoch = tmp;
+            std::fill(nodesNextEpoch->begin(), nodesNextEpoch->end(), 0.0);
+
+            auto tmp2 = freeNodeNextEpoch;
+            freeNodeNextEpoch = freeNodeCurEpoch;
+            freeNodeCurEpoch = tmp2;
+            freeNodeNextEpoch = 0.0;
         }
 
         double numerator = 0.0;
-        for(uint32_t nodeIdx = 0; nodeIdx < lastNodeIdx + 1; nodeIdx++){
-            numerator += curNodes->at(nodeIdx);
+        for(uint32_t nodeIdx = 0; nodeIdx < nodesCurEpoch->size(); nodeIdx++){
+            numerator += nodesCurEpoch->at(nodeIdx);
         }
-        double denominator = curNodes->at(0) + curNodes->at(1);
 
-        delete curNodes, nextNodes;
+        double denominator = nodesCurEpoch->at(0) + nodesCurEpoch->at(1);
+
+        delete nodesCurEpoch, nodesNextEpoch;
         return (numerator / denominator);
     }
 
@@ -184,13 +184,13 @@ namespace SSD_Components{
         this->pagesPerBlock = pagesPerBlock;
         requestCountInCurrentInterval = 0;
         currentTimestamp = 0;
-        lastBlocksCount = 0;
-        lastBlocksValidPagesCount = 0;
+        totalErasedLastBlocksCount = 0;
+        totalErasedLastBlocksValidPagesCount = 0;
 
         hotFilter = new HotFilter(noOfBlocks);
 
-        intervalCountTable.resize(CON::SELECT_EPOCH_TIMESTAMP);
-        timestampTable.resize(noOfBlocks / CON::ENTRY_UNIT, CON::TIMESTAMP_NOT_ACCESSED);
+        updateIntervalTable.resize(CON::UPDATE_INTERVAL_TABLE_SIZE);
+        timestampTable.resize(noOfBlocks / CON::TIMETABLE_ENTRY_UNIT, CON::TIMESTAMP_NOT_ACCESSED);
 
         currentUID = NULL;
         changeUIDTag = true;
@@ -204,16 +204,58 @@ namespace SSD_Components{
         }
     }
 
-    void Log_Update_Interval::addHotFilter(const LPA_type lba)
+    bool Log_Update_Interval::isHot(const LPA_type lba)
     {
-        uint64_t& vector = hotFilter->filter[lba * CON::HOT_FILTER_BITS_COUNT / 64];
-        uint8_t bit = (vector & (0b11 << ((lba * CON::HOT_FILTER_BITS_COUNT) % 64)));
-        if(bit != ((1 << CON::HOT_FILTER_BITS_COUNT) - 1)){
-            vector &= ~(0b11 << ((lba * CON::HOT_FILTER_BITS_COUNT) % 64));
-            vector |= ((bit + 1) << ((lba * CON::HOT_FILTER_BITS_COUNT) % 64)); 
+        uint64_t filterIdx = lba * CON::HOT_FILTER_BITS_COUNT;
+        uint8_t bitMask = ((1 << CON::HOT_FILTER_BITS_COUNT) - 1);
+        uint64_t& vector = hotFilter->filter[filterIdx / 64];
+        uint8_t bit = ((vector & (bitMask << (filterIdx % 64))) >> (filterIdx % 64));
+
+        return (bit == bitMask);
+    }
+
+    void Log_Update_Interval::updateHotFilter(const LPA_type lba, const lui_timestamp blkAge, const level_type level, const bool forGC)
+    {
+        if(totalErasedHotBlocksCount == 0) return;
+
+        uint64_t filterIdx = lba * CON::HOT_FILTER_BITS_COUNT;
+        uint64_t& vector = hotFilter->filter[filterIdx / 64];
+
+        uint8_t bitMask = ((1 << CON::HOT_FILTER_BITS_COUNT) - 1);
+        uint8_t bit = ((vector & (bitMask << (filterIdx % 64))) >> (filterIdx % 64));
+
+        if(forGC){
+            if(bit > 0){
+                bit--;
+                if(level == 0) bit--;
+            }
+        } else{
+            if(level == 1){
+                if((blkAge < (totalHotBlocksAge / totalErasedHotBlocksCount))){
+                    if(bit != bitMask){
+                        bit++;
+                    }
+                } else if(bit > 0){
+                    bit--;
+                }
+            }
+        }
+        vector &= ~(bitMask << (filterIdx % 64));
+        vector |= ((bit + 1) << ((filterIdx % 64)));
+    }
+
+    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 1e6;
+    void Log_Update_Interval::updateTable(const LPA_type lba)
+    {
+        scheduleCurrentTimestamp();
+        setTables(lba);
+
+        if((currentTimestamp % CON::GROUP_CONFIGURE_EPOCH) == 0){
+            selectUID();
         }
     }
 
+    //Current Timestamp is increased when user write pages as amount of a block.
     void Log_Update_Interval::scheduleCurrentTimestamp()
     {
         requestCountInCurrentInterval++;
@@ -223,40 +265,46 @@ namespace SSD_Components{
         }
     }
 
-    lui_timestamp& Log_Update_Interval::getTimestampEntry(const LPA_type lba)
-    {
-        if(!CON::ENTRY_VERIFY(lba)){
-            PRINT_ERROR("GET TIMESTAMP ENTRY, LBA - " << lba);
-        }
-        return timestampTable.at(lba / CON::ENTRY_UNIT);
-    }
-
-    void Log_Update_Interval::updateTimestamp(const LPA_type lba)
+    //Timestamp table, update interval table;
+    void Log_Update_Interval::setTables(const LPA_type lba)
     {
         if(!CON::ENTRY_VERIFY(lba)) return;
-        lui_timestamp& prevTimestamp = getTimestampEntry(lba);
+        lui_timestamp& prevTimestamp = timestampTable[lba / CON::TIMETABLE_ENTRY_UNIT];
 
         if(prevTimestamp != CON::TIMESTAMP_NOT_ACCESSED){
-            lui_timestamp timeInterval = currentTimestamp - prevTimestamp;
-            intervalCountTable[timeInterval]++;
+            lui_timestamp timeInterval = (currentTimestamp - prevTimestamp);
+            if(timeInterval >= CON::UPDATE_INTERVAL_TABLE_SIZE){
+                timeInterval = CON::UPDATE_INTERVAL_TABLE_SIZE - 1;
+            }
+            updateIntervalTable[timeInterval]++;
         }
         prevTimestamp = currentTimestamp;
     }
 
+    void Log_Update_Interval::addBlockAge(const Block_Type* block, const Queue_Type queueType)
+    {
+        if(queueType == Queue_Type::HOT_QUEUE){
+            totalErasedHotBlocksCount++;
+            totalHotBlocksAge += (currentTimestamp - block->createTimestamp);
+        }
+        else if(queueType == Queue_Type::LAST_QUEUE){
+            totalErasedLastBlocksCount++;
+            totalErasedLastBlocksValidPagesCount += (pagesPerBlock - block->invalid_page_count);
+        }
+    }
+
+    const double CON::UID_SELECTION_THRESHOLD = 0.005;
     void Log_Update_Interval::selectUID()
     {
-        uint64_t totalReqs = 0;
-        for(uint64_t intervalCount : intervalCountTable){
-            totalReqs += intervalCount;
-        }
-        uint64_t avgResTime = (hotFilter->totalBlocksAge / hotFilter->totalBlocksCount);
-        double lastBlocksAvgValidPagesRatio = (lastBlocksValidPagesCount / lastBlocksCount);
+        uint64_t totalReqs = CON::GROUP_CONFIGURE_EPOCH;
+        uint64_t hotAvgResTime = (totalHotBlocksAge / totalErasedHotBlocksCount);
+        double lastBlocksAvgValidPagesRatio = (totalErasedLastBlocksValidPagesCount / totalErasedLastBlocksCount);
 
         UID* newUID = new UID();
         
         if(currentUID != NULL){
-            double wafForCurUID = currentUID->getWAF(intervalCountTable, totalReqs, avgResTime, lastBlocksAvgValidPagesRatio);
-            double wafForNewUID = newUID->createUID(intervalCountTable, totalReqs, avgResTime, lastBlocksAvgValidPagesRatio);
+            double wafForCurUID = currentUID->getWAF(updateIntervalTable, totalReqs, hotAvgResTime, lastBlocksAvgValidPagesRatio);
+            double wafForNewUID = newUID->createUID(updateIntervalTable, totalReqs, hotAvgResTime, lastBlocksAvgValidPagesRatio);
             
             if(wafForCurUID < (wafForNewUID * (1.0 - CON::UID_SELECTION_THRESHOLD))){
                 return;
@@ -267,44 +315,15 @@ namespace SSD_Components{
         changeUIDTag = true;
     }
 
-
-    bool Log_Update_Interval::isHot(const LPA_type lba)
-    {
-        uint64_t& vector = hotFilter->filter[lba * CON::HOT_FILTER_BITS_COUNT / 64];
-        uint8_t bit = (vector & (0b11 << ((lba * CON::HOT_FILTER_BITS_COUNT) % 64)));
-        return (bit == ((1 << CON::HOT_FILTER_BITS_COUNT) - 1));
-    }
-
-    void Log_Update_Interval::writeData(const LPA_type lba)
-    {
-        scheduleCurrentTimestamp();
-        addHotFilter(lba);
-        updateTimestamp(lba);
-
-        if((currentTimestamp % CON::SELECT_EPOCH_TIMESTAMP) == 0){
-            selectUID();
-        }
-    }
-
-    void Log_Update_Interval::addBlockAge(const Block_Type* block, const Queue_Type queueType)
-    {
-        if(queueType == Queue_Type::HOT_QUEUE){
-            hotFilter->totalBlocksCount++;
-            hotFilter->totalBlocksAge += (currentTimestamp - block->createTimestamp);
-        }
-        else if(queueType == Queue_Type::LAST_QUEUE){
-            lastBlocksCount++;
-            lastBlocksValidPagesCount += (pagesPerBlock - block->invalid_page_count);
-        }
-    }
-
+    // Only return UID pointer if a new UID has been created.
+    // Else, return the null pointer.
     UID *Log_Update_Interval::getUID()
     {
         if(changeUIDTag){
             changeUIDTag = false;
             return currentUID;
         } else{
-            return NULL;
+            return nullptr;
         }
     }
 

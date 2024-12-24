@@ -9,7 +9,7 @@ namespace SSD_Components
 		NVM_Transaction_Flash_RD* related_read, page_status_type written_sectors_bitmap, data_timestamp_type data_timestamp) :
 		NVM_Transaction_Flash(source, Transaction_Type::WRITE, stream_id, data_size_in_byte, lpa, ppa, address, user_io_request, IO_Flow_Priority_Class::UNDEFINED),
 		Content(content), RelatedRead(related_read), write_sectors_bitmap(written_sectors_bitmap), DataTimeStamp(data_timestamp),
-		ExecutionMode(WriteExecutionModeType::SIMPLE)
+		ExecutionMode(WriteExecutionModeType::SIMPLE), level(UNDEFINED_LEVEL)
 	{
 	}
 
@@ -18,7 +18,7 @@ namespace SSD_Components
 		NVM::memory_content_type content, NVM_Transaction_Flash_RD* related_read, page_status_type written_sectors_bitmap, data_timestamp_type data_timestamp) :
 		NVM_Transaction_Flash(source, Transaction_Type::WRITE, stream_id, data_size_in_byte, lpa, ppa, user_io_request, IO_Flow_Priority_Class::UNDEFINED),
 		Content(content), RelatedRead(related_read), write_sectors_bitmap(written_sectors_bitmap), DataTimeStamp(data_timestamp),
-		ExecutionMode(WriteExecutionModeType::SIMPLE)
+		ExecutionMode(WriteExecutionModeType::SIMPLE), level(UNDEFINED_LEVEL)
 	{
 	}
 
@@ -27,7 +27,7 @@ namespace SSD_Components
 		page_status_type written_sectors_bitmap, data_timestamp_type data_timestamp) :
 		NVM_Transaction_Flash(source, Transaction_Type::WRITE, stream_id, data_size_in_byte, lpa, NO_PPA, user_io_request, priority_class),
 		Content(content), RelatedRead(NULL), write_sectors_bitmap(written_sectors_bitmap), DataTimeStamp(data_timestamp),
-		ExecutionMode(WriteExecutionModeType::SIMPLE)
+		ExecutionMode(WriteExecutionModeType::SIMPLE), level(UNDEFINED_LEVEL)
 	{
 	}
 
@@ -36,7 +36,7 @@ namespace SSD_Components
 		page_status_type written_sectors_bitmap, data_timestamp_type data_timestamp) :
 		NVM_Transaction_Flash(source, Transaction_Type::WRITE, stream_id, data_size_in_byte, lpa, NO_PPA, user_io_request, IO_Flow_Priority_Class::UNDEFINED),
 		Content(content), RelatedRead(NULL), write_sectors_bitmap(written_sectors_bitmap), DataTimeStamp(data_timestamp),
-		ExecutionMode(WriteExecutionModeType::SIMPLE)
+		ExecutionMode(WriteExecutionModeType::SIMPLE), level(UNDEFINED_LEVEL)
 	{
 	}
 }

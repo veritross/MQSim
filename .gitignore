@@ -2,4 +2,4 @@ MQSim
 build/
 .vscode
 traces
-**.xml
+**test**.xml

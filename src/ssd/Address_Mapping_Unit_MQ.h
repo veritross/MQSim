@@ -71,22 +71,20 @@ namespace SSD_Components
 		bool ideal_mapping_table;
 		TransactionServicedSignalHandlerType connected_transaction_serviced_signal_handler;
 
-		Log_Update_Interval* lui;
-
 		std::vector<std::set<NVM_Transaction_Flash_WR*>> write_transactions_for_level;
 
 		PPA_type online_create_entry_for_reads(LPA_type lpa, const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& read_address, uint64_t read_sectors_bitmap);
 
 		bool query_cmt(NVM_Transaction_Flash* tr);
 
-		void manage_user_transaction_facing_barrier(NVM_Transaction_Flash* transaction);
-		void manage_mapping_transaction_facing_barrier(stream_id_type stream_id, MVPN_type mvpn, bool read);
+		void insertUserTrBarrierQueue(NVM_Transaction_Flash* transaction);
+		void insertMappingTrBarrierQueue(stream_id_type stream_id, MVPN_type mvpn, bool read);
 		bool is_lpa_locked_for_gc(stream_id_type stream_id, LPA_type lpa);
 		bool is_mvpn_locked_for_gc(stream_id_type stream_id, MVPN_type mvpn);
 
-        bool translate_lpa_to_ppa(stream_id_type streamID, NVM_Transaction_Flash* transaction, level_type level);
-        void allocate_page_for_write(NVM_Transaction_Flash_WR* tr, level_type level);
-		void manage_unsuccessful_transaction(NVM_Transaction_Flash_WR* tr, level_type level);
+        bool translate_lpa_to_ppa(stream_id_type streamID, NVM_Transaction_Flash* transaction);
+        void allocate_page_for_write(NVM_Transaction_Flash_WR* tr);
+		void manage_unsuccessful_transaction(NVM_Transaction_Flash_WR* tr);
 
 		MVPN_type get_MVPN(const LPA_type lpa, const stream_id_type stream_id);
 		LPA_type get_start_LPN_in_MVP(const MVPN_type mvpn);
