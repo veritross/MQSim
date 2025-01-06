@@ -3,7 +3,7 @@
 #include <stdint.h>
 	
 	
-#define MIN_QUEUE_SIZE 2
+#define MIN_QUEUE_SIZE 5
 #define MQ_All_VALID_PAGE 0x0000000000000000ULL
 #define DEFAULT_STREAM 0
 #define UNDEFINED_LEVEL UINT32_MAX

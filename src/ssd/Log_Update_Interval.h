@@ -33,33 +33,42 @@ namespace SSD_Components
 	};
 
 	struct HotFilter{
-		uint64_t* filter;
+		std::vector<uint8_t> filter;
 
 		HotFilter(uint64_t noOfBlocks);
 		~HotFilter();
+		void clearFilter();
 	};
 
 	class UID{
 	private:
 		//key. group count.
 		//value. group size.
-		static const double MarkovChain(const std::vector<double>& p, double lastBlocksAvgValidPagesRatio);
+		double MarkovChain(const std::vector<double>& p, double lastBlocksAvgValidPagesRatio, double hotTrafficRatio);
 	public:
+		UID();
+
+		// Used only start of simulation.
+		UID(const std::vector<uint32_t>& groupConf);
+
 		std::vector<uint32_t> groupConf;
-		double createUID(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs, uint64_t avgResTime, double lastBlocksAvgValidPagesRatio);
-		double getWAF(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs, uint64_t avgResTime, double lastBlocksAvgValidPagesRatio);
+		double createUID(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock);
+		double getWAF(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs);
 	};
 
 
 	class Log_Update_Interval 
 	{
 	private:
+		uint64_t totalBlocksCount;
 		uint32_t pagesPerBlock;
+		
 		lui_timestamp requestCountInCurrentInterval;
 		lui_timestamp currentTimestamp;
 
 		uint64_t totalHotBlocksAge;
 		uint64_t totalErasedHotBlocksCount;
+		uint64_t totalHotBlocksValidPages;
 		uint64_t totalErasedLastBlocksCount;
 		uint64_t totalErasedLastBlocksValidPagesCount;
 
@@ -81,13 +90,15 @@ namespace SSD_Components
 		void selectUID();
 
 	public:
-		Log_Update_Interval(uint64_t noOfBlocks, uint32_t pagesPerBlock);
+		Log_Update_Interval(uint64_t totalBlocksCount, uint32_t pagesPerBlock, const std::vector<uint32_t>& initialGroupConf);
         ~Log_Update_Interval();
 
         bool isHot(const LPA_type lba);
 		void updateHotFilter(const LPA_type lba, const lui_timestamp blkAge, const level_type level, const bool forGC);
 		void updateTable(const LPA_type lba);
 		void addBlockAge(const Block_Type* block, const Queue_Type queueType);
+
+		void clearTable();
 
 		UID* getUID();
 		lui_timestamp getCurrentTimestamp();

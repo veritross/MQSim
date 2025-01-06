@@ -396,7 +396,6 @@ namespace SSD_Components
 			delete domains[i];
 		}
 		delete[] domains;
-
 		for (unsigned int channel_id = 0; channel_id < channel_count; channel_id++) {
 			for (unsigned int chip_id = 0; chip_id < chip_no_per_channel; chip_id++) {
 				for (unsigned int die_id = 0; die_id < die_no_per_chip; die_id++) {
@@ -463,13 +462,13 @@ namespace SSD_Components
 		if (domains[stream_id]->CMT->Check_free_slot_availability()) {
 			domains[stream_id]->CMT->Reserve_slot_for_lpn(stream_id, lpa);
 			domains[stream_id]->CMT->Insert_new_mapping_info(stream_id, lpa,
-				domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
+			domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
 		} else {
 			LPA_type evicted_lpa;
 			domains[stream_id]->CMT->Evict_one_slot(evicted_lpa);
 			domains[stream_id]->CMT->Reserve_slot_for_lpn(stream_id, lpa);
 			domains[stream_id]->CMT->Insert_new_mapping_info(stream_id, lpa,
-				domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
+			domains[stream_id]->GlobalMappingTable[lpa].PPA, domains[stream_id]->GlobalMappingTable[lpa].WrittenStateBitmap);
 		}
 		domains[stream_id]->No_of_inserted_entries_in_preconditioning++;
 		
@@ -1469,7 +1468,7 @@ namespace SSD_Components
 	{
 		AddressMappingDomain* domain = domains[stream_id];
 		MVPN_type mvpn = get_MVPN(lpa, stream_id);
-
+		
 		/*This is the first time that a user request accesses this address.
 		Just create an entry in cache! No flash read is needed.*/
 		if (domain->GlobalTranslationDirectory[mvpn].MPPN == NO_MPPN) {

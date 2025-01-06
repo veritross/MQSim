@@ -67,7 +67,7 @@ Host_System::Host_System(Host_Parameter_Set* parameters, bool preconditioning_re
 					Utils::Logical_Address_Partitioning_Unit::Start_lha_available_to_flow(flow_id), Utils::Logical_Address_Partitioning_Unit::End_lha_available_to_flow(flow_id),
 					FLOW_ID_TO_Q_ID(flow_id), nvme_sq_size, nvme_cq_size,
 					flow_param->Priority_Class, flow_param->Initial_Occupancy_Percentage / double(100.0),
-					flow_param->File_Path, flow_param->Time_Unit, flow_param->Relay_Count, flow_param->Percentage_To_Be_Executed,
+					flow_param->Load_File_Path, flow_param->File_Path, flow_param->Time_Unit, flow_param->Relay_Count, flow_param->Percentage_To_Be_Executed,
 					ssd_host_interface->GetType(), this->PCIe_root_complex, this->SATA_hba,
 					parameters->Enable_ResponseTime_Logging, parameters->ResponseTime_Logging_Period_Length, parameters->Input_file_path + ".IO_Flow.No_" + std::to_string(flow_id) + ".log");
 
@@ -94,7 +94,6 @@ Host_System::~Host_System()
 	if (ssd_device->Host_interface->GetType() == HostInterface_Types::SATA) {
 		delete this->SATA_hba;
 	}
-
 	Host_Components::IO_Flow_Base* base_flow;
 	for (uint16_t flow_id = 0; flow_id < this->IO_flows.size(); flow_id++) {
 		if(base_flow = dynamic_cast<Host_Components::IO_Flow_Synthetic*>(IO_flows[flow_id])){
@@ -117,6 +116,13 @@ void Host_System::Attach_ssd_device(SSD_Device* ssd_device)
 const std::vector<Host_Components::IO_Flow_Base*> Host_System::Get_io_flows()
 {
 	return IO_flows;
+}
+
+void Host_System::ClearStats()
+{
+	for(auto flow : IO_flows){
+		flow->ClearStats();
+	}
 }
 
 void Host_System::Start_simulation()

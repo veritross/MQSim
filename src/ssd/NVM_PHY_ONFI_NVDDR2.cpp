@@ -59,7 +59,7 @@ namespace SSD_Components {
 		delete[] WaitingCopybackWrites;
 	}
 
-	void NVM_PHY_ONFI_NVDDR2::Setup_triggers()
+    void NVM_PHY_ONFI_NVDDR2::Setup_triggers()
 	{
 		Sim_Object::Setup_triggers();
 		for (unsigned int i = 0; i < channel_count; i++) {

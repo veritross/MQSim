@@ -834,6 +834,22 @@ namespace SSD_Components
 		val = std::to_string(Stats::Total_flash_writes_for_mapping);
 		xmlwriter.Write_attribute_string_inline(attr, val);
 
+		attr = "Data_Cache_Hits_For_Read";
+		val = std::to_string(Stats::readTR_Cache_hits);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Data_Cache_Misses_For_Read";
+		val = std::to_string(Stats::readTR_Cache_miss);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Data_Cache_Hits_For_Write";
+		val = std::to_string(Stats::writeTR_Cache_hits);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
+		attr = "Data_Cache_Misses_For_Write";
+		val = std::to_string(Stats::writeTR_Cache_miss);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
 		attr = "CMT_Hits";
 		val = std::to_string(Stats::CMT_hits);
 		xmlwriter.Write_attribute_string_inline(attr, val);
@@ -889,7 +905,13 @@ namespace SSD_Components
 		xmlwriter.Write_end_element_tag();
 	}
 
-	void FTL::Start_simulation()
+    void FTL::ClearStats()
+    {
+		Stats::Clear_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
+		Stats::Init_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
+    }
+
+    void FTL::Start_simulation()
 	{
 	}
 

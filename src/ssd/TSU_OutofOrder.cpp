@@ -142,6 +142,59 @@ void TSU_OutOfOrder::Report_results_in_XML(std::string name_prefix, Utils::XmlWr
 	xmlwriter.Write_close_tag();
 }
 
+void TSU_OutOfOrder::ClearStats()
+{
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			UserReadTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			UserWriteTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			MappingReadTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			MappingWriteTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			GCReadTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			GCWriteTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+	for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+	{
+		for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+		{
+			GCEraseTRQueue[channelID][chip_cntr].ClearStats();
+		}
+	}
+}
+
 void TSU_OutOfOrder::Schedule()
 {
 	opened_scheduling_reqs--;
@@ -283,13 +336,13 @@ bool TSU_OutOfOrder::service_read_transaction(NVM::FlashMemory::Flash_Chip *chip
 				sourceQueue2 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
 			}
 		}
-		else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
-		{
-			return false;
-		}
 		else if (GCReadTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
 		{
 			sourceQueue1 = &GCReadTRQueue[chip->ChannelID][chip->ChipID];
+		}
+		else if (UserWriteTRQueue[chip->ChannelID][chip->ChipID].size() > 0)
+		{
+			return false;
 		}
 		else
 		{

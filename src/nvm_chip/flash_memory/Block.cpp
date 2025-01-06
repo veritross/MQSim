@@ -12,7 +12,7 @@ namespace NVM
 
 		Block::~Block()
 		{
-		delete[] Pages;
+			delete[] Pages;
 		}
 	}
 }

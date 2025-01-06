@@ -23,16 +23,14 @@ namespace SSD_Components
         Block_Type* selectVictimBlockFront(Block_Queue* queue);
         Block_Type* selectVictimBlockCB(Block_Queue *queue, lui_timestamp currentTimeStamp);
     public:
-
         MQ_GC_Unit(const sim_object_id_type &id, FTL* ftl, uint32_t pagesPerBlock, uint32_t sectorsPerPage);
+        ~MQ_GC_Unit();
 
         void Setup_triggers();
 		void Start_simulation();
 		void Validate_simulation_config();
 		void Execute_simulator_event(MQSimEngine::Sim_Event*);
-        bool Stop_servicing_writes(const uint32_t level);
         void gc_start(Block_Queue* prevQueue, lui_timestamp currentTimeStamp);
-        void gc_start_specified_block(Block_Type* victimBlock, const level_type nextLevel);
 	    bool GC_is_in_urgent_mode(NVM::FlashMemory::Flash_Chip* const chip);
 
         void submitTransactions(Block_Type* victimBlock);

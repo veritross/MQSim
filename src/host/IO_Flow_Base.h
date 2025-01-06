@@ -17,6 +17,8 @@
 #include "SATA_HBA.h"
 #include "../utils/Workload_Statistics.h"
 
+#include "Stats.h"
+
 namespace Host_Components
 {
 	struct NVMe_Queue_Pair
@@ -60,6 +62,8 @@ namespace Host_Components
 		uint32_t Get_generated_request_count();
 		uint32_t Get_serviced_request_count();//in microseconds
 		uint32_t Get_device_response_time();//in microseconds
+		uint32_t Get_read_device_response_time();
+		uint32_t Get_write_device_response_time();
 		uint32_t Get_min_device_response_time();//in microseconds
 		uint32_t Get_max_device_response_time();//in microseconds
 		uint32_t Get_end_to_end_request_delay();//in microseconds
@@ -68,6 +72,8 @@ namespace Host_Components
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
 		virtual void Get_statistics(Utils::Workload_Statistics& stats, LPA_type(*Convert_host_logical_address_to_device_address)(LHA_type lha),
 			page_status_type(*Find_NVM_subunit_access_bitmap)(LHA_type lha)) = 0;
+
+		void ClearStats();
 	protected:
 		uint16_t flow_id;
 		double initial_occupancy_ratio;//The initial amount of valid logical pages when pereconditioning is performed
@@ -116,7 +122,7 @@ namespace Host_Components
 		uint32_t Get_end_to_end_request_delay_short_term();//in microseconds
 		sim_time_type STAT_sum_device_response_time_short_term, STAT_sum_request_delay_short_term;
 		unsigned int STAT_serviced_request_count_short_term;
-
+		std::ofstream log_file2;
 	};
 }
 

@@ -191,4 +191,23 @@ namespace SSD_Components
 	{
 		return totalWaitingTime;
 	}
+	
+    void Queue_Probe::ClearStats()
+    {
+		for(auto& state : states){
+			state.nEnterances = 0;
+			state.totalTime = 0;
+		}
+		nRequests = 0;
+		nDepartures = 0;
+		totalWaitingTime = 0;
+		lastCountChange = 0;
+		lastCountChangeReference = 0;
+		nRequestsEpoch = 0;
+		nDeparturesEpoch = 0;
+		totalWaitingTimeEpoch = 0;
+		epochStartTime = Simulator->Time();
+		maxQueueLength = 0;
+		maxWaitingTime = 0;
+    }
 }

@@ -38,6 +38,8 @@ namespace SSD_Components
 		sim_time_type AvgWaitingTime();
 		sim_time_type AvgWaitingTimeEpoch();
 		sim_time_type TotalWaitingTime();
+
+		void ClearStats();
 	private:
 		unsigned int count = 0;
 		unsigned long nRequests = 0;

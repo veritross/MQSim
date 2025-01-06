@@ -15,9 +15,26 @@ namespace SSD_Components {
 	*/
 	void NVM_PHY_ONFI::broadcastTransactionServicedSignal(NVM_Transaction_Flash* transaction)
 	{
+		flash_channel_ID_type channelID = transaction->Address.ChannelID;
+		flash_chip_ID_type chipID = transaction->Address.ChipID;
+		if(transaction->Type == Transaction_Type::READ){
+			if(((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite != NULL){
+				channelID = ((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite->Address.ChannelID;
+				chipID = ((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite->Address.ChipID;
+			}
+		}
 		for (std::vector<TransactionServicedHandlerType>::iterator it = connectedTransactionServicedHandlers.begin();
 			it != connectedTransactionServicedHandlers.end(); it++) {
 			(*it)(transaction);
+		}
+
+		auto tmp = (NVM_PHY_ONFI*)this;
+		if(channelID != transaction->Address.ChannelID || chipID != transaction->Address.ChipID){
+			if(tmp->Get_channel_status(channelID) == BusChannelStatus::IDLE){
+				broadcastChannelIdleSignal(channelID);
+			} else if(tmp->GetChipStatus(tmp->Get_chip(channelID, chipID)) == ChipStatus::IDLE){
+				broadcastChipIdleSignal(tmp->Get_chip(channelID, chipID));
+			}
 		}
 		delete transaction;//This transaction has been consumed and no more needed
 	}

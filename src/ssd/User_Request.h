@@ -25,6 +25,8 @@ namespace SSD_Components
 		std::list<NVM_Transaction*> Transaction_list;
 		unsigned int Sectors_serviced_from_cache;
 
+		std::list<std::pair<unsigned int, unsigned int>> size_of_pages;
+
 		unsigned int Size_in_byte;
 		unsigned int SizeInSectors;
 		UserRequestType Type;

@@ -2,6 +2,7 @@
 #include "MQ_GC_Unit.h"
 #include "FTL.h"
 #include "Flash_Block_Manager_MQ.h"
+#include <algorithm>
 
 
 namespace SSD_Components{
@@ -10,6 +11,9 @@ namespace SSD_Components{
     MQ_GC_Unit::MQ_GC_Unit(const sim_object_id_type &id, FTL *ftl, uint32_t pagesPerBlock, uint32_t sectorsPerPage)
     : Sim_Object(id), ftl(ftl), pagesPerBlock(pagesPerBlock), sectorsPerPage(sectorsPerPage){
         _my_instance = this;
+    }
+
+    MQ_GC_Unit::~MQ_GC_Unit(){
     }
 
     void MQ_GC_Unit::Setup_triggers()
@@ -32,7 +36,7 @@ namespace SSD_Components{
 
     void MQ_GC_Unit::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash *transaction)
     {
-        Block_Type* block = _my_instance->ftl->BlockManager->getBlock(transaction->PPA);
+        Block_Type* block = nullptr;
         switch (transaction->Source) {
             case Transaction_Source_Type::USERIO:
             case Transaction_Source_Type::MAPPING:
@@ -48,6 +52,7 @@ namespace SSD_Components{
                     default:
                         PRINT_ERROR("Unexpected situation in the GC function!")
                 }
+                block = _my_instance->ftl->BlockManager->getBlock(transaction->PPA);
                 if (block->status == MQ_Block_Status::ERASING) {
                     if(block->Ongoing_user_program_count == 0 && block->Ongoing_user_read_count == 0){
                         _my_instance->submitTransactions(block);
@@ -59,6 +64,7 @@ namespace SSD_Components{
         switch (transaction->Type) {
             case Transaction_Type::READ:
             {
+                block = _my_instance->ftl->BlockManager->getBlock(transaction->PPA);
                 PPA_type ppa;
                 MPPN_type mppa;
                 page_status_type page_status_bitmap;
@@ -86,7 +92,7 @@ namespace SSD_Components{
                         ((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite->RelatedRead = NULL;
 
                         if(_my_instance->ftl->BlockManager->Stop_servicing_writes((((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite)->level)){
-                            _my_instance->ftl->Address_Mapping_Unit->manage_unsuccessful_transaction(((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite);
+                            _my_instance->ftl->Address_Mapping_Unit->manage_unsuccessful_transaction(((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite, (((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite)->level);
                         } else{
                             _my_instance->ftl->Address_Mapping_Unit->allocate_page_for_write(((NVM_Transaction_Flash_RD*)transaction)->RelatedWrite);
                             _my_instance->ftl->TSU->Prepare_for_transaction_submit();
@@ -100,6 +106,7 @@ namespace SSD_Components{
                 break;
             }
             case Transaction_Type::WRITE:
+                block = _my_instance->ftl->BlockManager->getBlock(((NVM_Transaction_Flash_WR*)transaction)->RelatedErase->PPA);
                 if (block->Holds_mapping_data) {
                     _my_instance->ftl->Address_Mapping_Unit->Remove_barrier_for_accessing_mvpn(transaction->Stream_id, (MVPN_type)transaction->LPA);
                     DEBUG(Simulator->Time() << ": MVPN=" << (MVPN_type)transaction->LPA << " unlocked!!");
@@ -115,8 +122,14 @@ namespace SSD_Components{
                 }
                 break;
             case Transaction_Type::ERASE:
+                block = _my_instance->ftl->BlockManager->getBlock(transaction->PPA);
+                _my_instance->ftl->BlockManager->queues.at(block->prevQueue)->currentErasingBlocksCount--;
                 _my_instance->ftl->BlockManager->finishErase(block);
-                _my_instance->ftl->Address_Mapping_Unit->Start_servicing_writes_for_level(block->prevQueue);
+                if(_my_instance->ftl->BlockManager->overGCThreshold(block->prevQueue)){
+                    _my_instance->gc_start(_my_instance->ftl->BlockManager->queues.at(block->prevQueue), _my_instance->ftl->BlockManager->lui->getCurrentTimestamp());
+                } else{
+                    _my_instance->ftl->Address_Mapping_Unit->Start_servicing_writes_for_level(block->prevQueue);
+                }
                 break;
             } //switch (transaction->Type)
     }
@@ -130,7 +143,6 @@ namespace SSD_Components{
         }
         return (*victimBlockItr);
     }
-
     void MQ_GC_Unit::gc_start(Block_Queue* prevQueue, lui_timestamp currentTimeStamp)
     {
         Block_Type* victimBlock = nullptr;
@@ -143,19 +155,11 @@ namespace SSD_Components{
             victimBlock = selectVictimBlockFront(prevQueue);
             nextLevel++;
         }
-        ftl->BlockManager->handleLUIBlockAge(victimBlock);
+
+        if(currentTimeStamp != 0) ftl->BlockManager->handleLUIBlockAge(victimBlock);
 
         victimBlock->SetEraseTags(nextLevel);
-        ftl->Address_Mapping_Unit->Set_barrier_for_accessing_physical_block(victimBlock);
-
-        if(victimBlock->Ongoing_user_program_count == 0 && victimBlock->Ongoing_user_read_count == 0){
-            submitTransactions(victimBlock);
-        }
-    }
-
-    void MQ_GC_Unit::gc_start_specified_block(Block_Type* victimBlock, const level_type nextLevel)
-    {
-        victimBlock->SetEraseTags(nextLevel);
+        prevQueue->currentErasingBlocksCount++;
         ftl->Address_Mapping_Unit->Set_barrier_for_accessing_physical_block(victimBlock);
 
         if(victimBlock->Ongoing_user_program_count == 0 && victimBlock->Ongoing_user_read_count == 0){
@@ -172,9 +176,12 @@ namespace SSD_Components{
 		for(auto blockItr = queue->blockList.begin(); blockItr != queue->blockList.end(); blockItr++){
 			lui_timestamp age = currentTimeStamp - (*blockItr)->createTimestamp;
 			double currentCost = (double)(pagesPerBlock - (*blockItr)->invalid_page_count) / (double)(age * (*blockItr)->invalid_page_count);
-			if(currentCost < lowestCost){
-				lowestCostItr = blockItr;
-				lowestCost = currentCost;
+			if((currentCost < lowestCost || (*lowestCostItr)->status != MQ_Block_Status::WORKING)
+                && (*blockItr)->Ongoing_user_read_count == 0 && (*blockItr)->Ongoing_user_program_count == 0){
+                if((*blockItr)->currentPageIdx == pagesPerBlock && (*blockItr)->status == MQ_Block_Status::WORKING){
+                    lowestCostItr = blockItr;
+                    lowestCost = currentCost;
+                }
 			}
 		}
         return (*lowestCostItr);
@@ -185,17 +192,19 @@ namespace SSD_Components{
         return false;
     }
 
+    
     void MQ_GC_Unit::submitTransactions(Block_Type* victimBlock)
     {
         Stats::Total_gc_executions++;
         ftl->TSU->Prepare_for_transaction_submit();
         
         NVM_Transaction_Flash_ER* gc_erase_tr = new NVM_Transaction_Flash_ER(Transaction_Source_Type::GC_WL, victimBlock->Stream_id, *victimBlock->blockAddr);
+        gc_erase_tr->PPA = ftl->Address_Mapping_Unit->Convert_address_to_ppa(gc_erase_tr->Address);
+        Block_Type* tmpBlock = ftl->BlockManager->getBlock(gc_erase_tr->PPA);
         if(victimBlock->invalid_page_count != pagesPerBlock){
             NVM_Transaction_Flash_RD* gc_read = NULL;
             NVM_Transaction_Flash_WR* gc_write = NULL;
             NVM::FlashMemory::Physical_Page_Address gc_candidate_address = *victimBlock->blockAddr;
-
             for (flash_page_ID_type pageID = 0; pageID < victimBlock->currentPageIdx; pageID++) {
                 if (ftl->BlockManager->isPageValid(victimBlock, pageID)) {
                     Stats::Total_page_movements_for_gc++;

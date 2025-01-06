@@ -2,6 +2,8 @@
 #define STATS_H
 
 #include "SSD_Defs.h"
+#include <map>
+#include "User_Request.h"
 
 namespace SSD_Components
 {
@@ -19,6 +21,8 @@ namespace SSD_Components
 		static unsigned long Total_flash_reads_for_mapping, Total_flash_writes_for_mapping;
 		static unsigned long Total_flash_reads_for_mapping_per_stream[MAX_SUPPORT_STREAMS], Total_flash_writes_for_mapping_per_stream[MAX_SUPPORT_STREAMS];
 
+		static unsigned int readTR_Cache_hits, writeTR_Cache_hits;
+		static unsigned int readTR_Cache_miss, writeTR_Cache_miss;
 		static unsigned int CMT_hits, readTR_CMT_hits, writeTR_CMT_hits;
 		static unsigned int CMT_miss, readTR_CMT_miss, writeTR_CMT_miss;
 		static unsigned int total_CMT_queries, total_readTR_CMT_queries, total_writeTR_CMT_queries;
@@ -35,6 +39,8 @@ namespace SSD_Components
 		static unsigned int Total_page_movements_for_wl, Total_wl_page_movements_per_stream[MAX_SUPPORT_STREAMS];
 
 		static unsigned int***** Block_erase_histogram;
+
+		static std::map<uint16_t, User_Request*> stored_request;
 	};
 }
 

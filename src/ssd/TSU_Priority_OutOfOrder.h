@@ -43,6 +43,7 @@ public:
     void Execute_simulator_event(MQSimEngine::Sim_Event *);
     void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter &xmlwriter);
 
+    void ClearStats() override;
 private:
     Flash_Transaction_Queue ***UserReadTRQueue;
     Flash_Transaction_Queue ***UserWriteTRQueue;

@@ -80,7 +80,11 @@ namespace MQSimEngine
 		Sim_Event* ev = NULL;
 		while (true) {
 			if (_EventList->Count == 0 || stop) {
-				break;
+				if(waitingLoadPhaseFinish){
+					StartRunPhase();
+				} else{
+					break;
+				}
 			}
 
 			EventTreeNode* minNode = _EventList->Get_min_node();
@@ -132,4 +136,26 @@ namespace MQSimEngine
 	{
 		return false;
 	}
+
+    void Engine::AttachClearStats(void (*ClearStats)())
+    {
+		this->ClearStats = ClearStats;
+    }
+
+    void Engine::FinishLoadPhase(sim_time_type time, Sim_Object* io_flow)
+    {
+        this->waitingRunPhaseFlowList.push_back({time, io_flow});
+		waitingLoadPhaseFinish = true;
+    }
+    void Engine::StartRunPhase()
+    {
+		waitingLoadPhaseFinish = false;
+		loadMileStone = CurrentTimeStamp;
+		ClearStats();
+		for(auto io_flow : waitingRunPhaseFlowList){
+			this->Register_sim_event(loadMileStone + io_flow.first, io_flow.second);
+		}
+
+		PRINT_MESSAGE("Start Run Phase....")
+    }
 }

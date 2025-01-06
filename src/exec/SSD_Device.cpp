@@ -299,7 +299,6 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 		{
 			caching_modes[i] = (*io_flows)[i]->Device_Level_Data_Caching_Mode;
 		}
-
 		switch (parameters->Caching_Mechanism)
 		{
 		case SSD_Components::Caching_Mechanism::SIMPLE:
@@ -307,7 +306,8 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 																	  parameters->Data_Cache_Capacity, parameters->Data_Cache_DRAM_Row_Size, parameters->Data_Cache_DRAM_Data_Rate,
 																	  parameters->Data_Cache_DRAM_Data_Busrt_Size, parameters->Data_Cache_DRAM_tRCD, parameters->Data_Cache_DRAM_tCL, parameters->Data_Cache_DRAM_tRP,
 																	  caching_modes, (unsigned int)io_flows->size(),
-																	  parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->Flash_Channel_Count * parameters->Chip_No_Per_Channel * parameters->Flash_Parameters.Die_No_Per_Chip * parameters->Flash_Parameters.Plane_No_Per_Die * parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE);
+																	  parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->Flash_Channel_Count * parameters->Chip_No_Per_Channel * parameters->Flash_Parameters.Die_No_Per_Chip * parameters->Flash_Parameters.Plane_No_Per_Die * parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->LFU,
+																	  parameters->RC_Bound, parameters->RC_capacity, parameters->LFU_reset_interval);
 
 			break;
 		case SSD_Components::Caching_Mechanism::ADVANCED:
@@ -315,7 +315,8 @@ SSD_Device::SSD_Device(Device_Parameter_Set *parameters, std::vector<IO_Flow_Par
 																		parameters->Data_Cache_Capacity, parameters->Data_Cache_DRAM_Row_Size, parameters->Data_Cache_DRAM_Data_Rate,
 																		parameters->Data_Cache_DRAM_Data_Busrt_Size, parameters->Data_Cache_DRAM_tRCD, parameters->Data_Cache_DRAM_tCL, parameters->Data_Cache_DRAM_tRP,
 																		caching_modes, parameters->Data_Cache_Sharing_Mode, (unsigned int)io_flows->size(),
-																		parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->Flash_Channel_Count * parameters->Chip_No_Per_Channel * parameters->Flash_Parameters.Die_No_Per_Chip * parameters->Flash_Parameters.Plane_No_Per_Die * parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE);
+																		parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->Flash_Channel_Count * parameters->Chip_No_Per_Channel * parameters->Flash_Parameters.Die_No_Per_Chip * parameters->Flash_Parameters.Plane_No_Per_Die * parameters->Flash_Parameters.Page_Capacity / SECTOR_SIZE_IN_BYTE, parameters->LFU,
+																		parameters->RC_Bound, parameters->RC_capacity, parameters->LFU_reset_interval);
 
 			break;
 		default:
@@ -438,4 +439,20 @@ LPA_type SSD_Device::Convert_host_logical_address_to_device_address(LHA_type lha
 page_status_type SSD_Device::Find_NVM_subunit_access_bitmap(LHA_type lha)
 {
 	return my_instance->Firmware->Find_NVM_subunit_access_bitmap(lha);
+}
+
+void SSD_Device::ClearStats()
+{
+	(this->Host_interface)->ClearStats();
+	if(Memory_Type == NVM::NVM_Type::FLASH){
+		((SSD_Components::FTL *)this->Firmware)->ClearStats();
+		((SSD_Components::FTL *)this->Firmware)->TSU->ClearStats();
+		for (unsigned int channel_cntr = 0; channel_cntr < Channel_count; channel_cntr++)
+		{
+			for (unsigned int chip_cntr = 0; chip_cntr < Chip_no_per_channel; chip_cntr++)
+			{
+				((SSD_Components::ONFI_Channel_NVDDR2 *)Channels[channel_cntr])->Chips[chip_cntr]->ClearStats();
+			}
+		}
+	}
 }

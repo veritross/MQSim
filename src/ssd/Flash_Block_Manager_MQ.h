@@ -31,7 +31,7 @@ namespace SSD_Components
         flash_page_ID_type currentPageIdx = 0;
         uint32_t invalid_page_count = 0;
         static uint32_t page_vector_size;
-        uint64_t* invalid_page_bitmap = 0;
+        std::vector<uint64_t> invalid_page_bitmap;
         int Ongoing_user_read_count = 0;
         int Ongoing_user_program_count = 0;
         
@@ -60,7 +60,12 @@ namespace SSD_Components
         Block_Type* getCurrentBlock();
         void enqueueBlock(Block_Type* block);
         level_type getLevel();
+        
         bool isFull();
+
+        void adjustBlockIdx(uint64_t pagesPerBlock);
+
+        uint32_t currentErasingBlocksCount;
     private:
         level_type level;
     };
@@ -68,11 +73,12 @@ namespace SSD_Components
 
 	class Flash_Block_Manager_MQ
 	{
+        friend class MQ_GC_Unit;
 	public:
 		Flash_Block_Manager_MQ(FTL* ftl, uint32_t channelCount, uint32_t chipsPerChannel, uint32_t diesPerChip, uint32_t planesPerDie, uint32_t blocksPerPlane, uint32_t pagesPerBlock);
 		~Flash_Block_Manager_MQ();
 	
-        void Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address& address, LPA_type lpa, uint32_t& level);
+        void Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address& address, LPA_type lpa, uint32_t& level, bool forGC);
         void Allocate_mapping_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address& address);
         
         void Read_transaction_issued(const PPA_type& ppa);
@@ -86,6 +92,7 @@ namespace SSD_Components
 
         void finishErase(Block_Type* block);
         bool Stop_servicing_writes(level_type level);
+        bool overGCThreshold(level_type level);
 
         bool isLastQueue(level_type level);
 
@@ -97,6 +104,7 @@ namespace SSD_Components
 
         void handleLUIBlockAge(Block_Type* block);
     private:
+        uint32_t queueCount;
         Log_Update_Interval* lui;
         FTL* ftl;
         uint32_t pagesPerBlock;

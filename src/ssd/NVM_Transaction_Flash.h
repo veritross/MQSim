@@ -12,6 +12,7 @@
 #include "../nvm_chip/flash_memory/Physical_Page_Address.h"
 #include "NVM_Transaction.h"
 #include "User_Request.h"
+#include "MQ_types.h"
 
 namespace SSD_Components
 {
@@ -26,7 +27,7 @@ namespace SSD_Components
 			unsigned int data_size_in_byte, LPA_type lpa, PPA_type ppa, const NVM::FlashMemory::Physical_Page_Address& address, User_Request* user_request, IO_Flow_Priority_Class::Priority priority_class);
 		NVM::FlashMemory::Physical_Page_Address Address;
 		unsigned int Data_and_metadata_size_in_byte; //number of bytes contained in the request: bytes in the real page + bytes of metadata
-
+		level_type level;
 		LPA_type LPA;
 		PPA_type PPA;
 

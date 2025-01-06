@@ -6,7 +6,6 @@
 #include "Flash_Block_Manager_MQ.h"
 
 
-
 namespace SSD_Components{
     Address_Mapping_Unit_MQ* Address_Mapping_Unit_MQ::_my_instance = NULL;
     Address_Mapping_Unit_MQ::Address_Mapping_Unit_MQ(const sim_object_id_type &id, FTL *ftl, NVM_PHY_ONFI *flash_controller, Flash_Block_Manager_MQ *block_manager, bool ideal_mapping_table, unsigned int cmt_capacity_in_byte, unsigned int ConcurrentStreamNo, unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie, std::vector<std::vector<flash_channel_ID_type>> stream_channel_ids, std::vector<std::vector<flash_chip_ID_type>> stream_chip_ids, std::vector<std::vector<flash_die_ID_type>> stream_die_ids, std::vector<std::vector<flash_plane_ID_type>> stream_plane_ids, unsigned int Block_no_per_plane, unsigned int Page_no_per_block, unsigned int SectorsPerPage, unsigned int PageSizeInBytes)
@@ -307,39 +306,43 @@ namespace SSD_Components{
 			delete writeTR;
 		}
     }
+
     void Address_Mapping_Unit_MQ::Start_servicing_writes_for_level(const uint32_t level)
     {
-		if(write_transactions_for_level.size() < level){
-			std::set<NVM_Transaction_Flash_WR*>& waiting_write_list = write_transactions_for_level.at(level);
-			auto trItr = waiting_write_list.begin();
+		if(write_transactions_for_level.size() > level){
+			std::set<NVM_Transaction_Flash*>& waiting_write_list = write_transactions_for_level.at(level);
 			if(waiting_write_list.size() > 0){
+				auto trItr = waiting_write_list.begin();
 				ftl->TSU->Prepare_for_transaction_submit();
+				std::set<LPA_type> tmp;
 				while(trItr != waiting_write_list.end()){
 					if(translate_lpa_to_ppa((*trItr)->Stream_id, *trItr)) {
 						ftl->TSU->Submit_transaction(*trItr);
-						if((*trItr)->RelatedRead != NULL){
-							ftl->TSU->Submit_transaction((*trItr)->RelatedRead);
+						if((*trItr)->Type == Transaction_Type::WRITE && ((NVM_Transaction_Flash_WR*)(*trItr))->RelatedRead != NULL){
+							ftl->TSU->Submit_transaction(((NVM_Transaction_Flash_WR*)(*trItr))->RelatedRead);
 						}
-						waiting_write_list.erase(trItr);
+						waiting_write_list.erase(trItr++);
 					} else{
 						break;
 					}
-					trItr++;
 				}
 				ftl->TSU->Schedule();
 			}
 		}
     }
     
-	PPA_type Address_Mapping_Unit_MQ::online_create_entry_for_reads(LPA_type lpa, const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address &read_address, uint64_t read_sectors_bitmap)
+	PPA_type Address_Mapping_Unit_MQ::online_create_entry_for_reads(NVM_Transaction_Flash_RD* tr)
     {
         // in page level mapping table, allocate page and no process.
-		level_type level = 1;
-		block_manager->Allocate_page(stream_id, read_address, lpa, level);
-		PPA_type ppa = Convert_address_to_ppa(read_address);
-		block_manager->Program_transaction_serviced(ppa);
-		domains[stream_id]->Update_mapping_info(ideal_mapping_table, stream_id, lpa, ppa, read_sectors_bitmap);
-        return ppa;
+		if(block_manager->Stop_servicing_writes(tr->level)){
+			return NO_PPA;
+		} else{
+			block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, false);
+			PPA_type ppa = Convert_address_to_ppa(tr->Address);
+			block_manager->Program_transaction_serviced(ppa);
+			domains[tr->Stream_id]->Update_mapping_info(ideal_mapping_table, tr->Stream_id, tr->LPA, ppa, tr->read_sectors_bitmap);
+			return ppa;
+		}
     }
 
     void Address_Mapping_Unit_MQ::insertUserTrBarrierQueue(NVM_Transaction_Flash *transaction)
@@ -396,7 +399,7 @@ namespace SSD_Components{
 			if (translate_lpa_to_ppa(stream_id, tr)) {
 				return true;
 			} else {
-				manage_unsuccessful_transaction((NVM_Transaction_Flash_WR*)tr);
+				manage_unsuccessful_transaction(tr, tr->level);
 				return false;
 			}
 		} else {//Limited CMT
@@ -420,7 +423,7 @@ namespace SSD_Components{
 				if (translate_lpa_to_ppa(stream_id, tr)) {
 					return true;
 				} else {
-					manage_unsuccessful_transaction((NVM_Transaction_Flash_WR*)tr);
+					manage_unsuccessful_transaction(tr, tr->level);
 					return false;
 				}
 			} else {
@@ -447,9 +450,16 @@ namespace SSD_Components{
 		PPA_type ppa = domains[streamID]->Get_ppa(ideal_mapping_table, streamID, transaction->LPA);
 
 		if (transaction->Type == Transaction_Type::READ) {
+			if(transaction->level == UNDEFINED_LEVEL){
+				transaction->level = 1;
+			}
 			if (ppa == NO_PPA) {
-				ppa = online_create_entry_for_reads(transaction->LPA, streamID, transaction->Address, ((NVM_Transaction_Flash_RD*)transaction)->read_sectors_bitmap);
-				flash_controller->Change_flash_page_status_for_preconditioning(transaction->Address, transaction->LPA);
+				ppa = online_create_entry_for_reads((NVM_Transaction_Flash_RD*)transaction);
+				if(ppa == NO_PPA) return false;
+				else {
+					flash_controller->Change_flash_page_status_for_preconditioning(transaction->Address, transaction->LPA);
+				}
+				
 			}
 			transaction->PPA = ppa;
 			Convert_ppa_to_address(transaction->PPA, transaction->Address);
@@ -459,7 +469,7 @@ namespace SSD_Components{
 			// FIN Read.
 			return true;
 		} else {
-			if(((NVM_Transaction_Flash_WR*)transaction)->level == UNDEFINED_LEVEL){
+			if(transaction->level == UNDEFINED_LEVEL){
 			 	if(block_manager->isHot(transaction->LPA)){
 					((NVM_Transaction_Flash_WR*)transaction)->level = 0;
 				} else{
@@ -517,12 +527,12 @@ namespace SSD_Components{
 					block_manager->Invalidate_page_in_block(tr->Stream_id, old_ppa);
 					tr->RelatedRead = update_read_tr;
 				}
+				block_manager->handleHotFilter(tr->LPA, old_ppa, forGC);
 			}
 
-			block_manager->handleHotFilter(tr->LPA, old_ppa, forGC);
 		}
 
-		block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level);
+		block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, forGC);
 		tr->PPA = Convert_address_to_ppa(tr->Address);
 		domain->Update_mapping_info(ideal_mapping_table, tr->Stream_id, tr->LPA, tr->PPA, 
 			((NVM_Transaction_Flash_WR*)tr)->write_sectors_bitmap | domain->Get_page_status(ideal_mapping_table, tr->Stream_id, tr->LPA));
@@ -554,12 +564,12 @@ namespace SSD_Components{
 		addr.BlockID = (flash_block_ID_type)(((((ppa % page_no_per_channel) % page_no_per_chip) % page_no_per_die) % page_no_per_plane) / pages_no_per_block);
 		addr.PageID = (flash_page_ID_type)((((((ppa % page_no_per_channel) % page_no_per_chip) % page_no_per_die) % page_no_per_plane) % pages_no_per_block) % pages_no_per_block);
     }
-    void Address_Mapping_Unit_MQ::manage_unsuccessful_transaction(NVM_Transaction_Flash_WR *tr)
+    void Address_Mapping_Unit_MQ::manage_unsuccessful_transaction(NVM_Transaction_Flash *tr, level_type level)
     {
-		if(write_transactions_for_level.size() < tr->level){
-			write_transactions_for_level.resize(tr->level + 1);
+		if(write_transactions_for_level.size() < level + 1){
+			write_transactions_for_level.resize(level + 1);
 		}
-		write_transactions_for_level.at(tr->level).insert(tr);
+		write_transactions_for_level.at(level).insert(tr);
     }
     
 	bool Address_Mapping_Unit_MQ::request_mapping_entry(const stream_id_type stream_id, const LPA_type lpa)
@@ -780,7 +790,6 @@ namespace SSD_Components{
     }
     void Address_Mapping_Unit_MQ::handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash *transaction)
     {
-		PRINT_ERROR("generate_flash_read_request_for_mapping_data - MAPPING IS NOT IMPLEMENTED")
 	// 	//First check if the transaction source is Mapping Module
 	// 	if (transaction->Source != Transaction_Source_Type::MAPPING) {
 	// 		return;

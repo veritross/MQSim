@@ -71,9 +71,9 @@ namespace SSD_Components
 		bool ideal_mapping_table;
 		TransactionServicedSignalHandlerType connected_transaction_serviced_signal_handler;
 
-		std::vector<std::set<NVM_Transaction_Flash_WR*>> write_transactions_for_level;
+		std::vector<std::set<NVM_Transaction_Flash*>> write_transactions_for_level;
 
-		PPA_type online_create_entry_for_reads(LPA_type lpa, const stream_id_type stream_id, NVM::FlashMemory::Physical_Page_Address& read_address, uint64_t read_sectors_bitmap);
+		PPA_type online_create_entry_for_reads(NVM_Transaction_Flash_RD* tr);
 
 		bool query_cmt(NVM_Transaction_Flash* tr);
 
@@ -84,7 +84,7 @@ namespace SSD_Components
 
         bool translate_lpa_to_ppa(stream_id_type streamID, NVM_Transaction_Flash* transaction);
         void allocate_page_for_write(NVM_Transaction_Flash_WR* tr);
-		void manage_unsuccessful_transaction(NVM_Transaction_Flash_WR* tr);
+		void manage_unsuccessful_transaction(NVM_Transaction_Flash* tr, level_type level);
 
 		MVPN_type get_MVPN(const LPA_type lpa, const stream_id_type stream_id);
 		LPA_type get_start_LPN_in_MVP(const MVPN_type mvpn);

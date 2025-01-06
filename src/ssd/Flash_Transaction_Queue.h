@@ -22,6 +22,8 @@ namespace SSD_Components
 		void remove(std::list<NVM_Transaction_Flash*>::iterator const& itr_pos);
 		void pop_front();
 		void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter& xmlwriter);
+
+		void ClearStats();
 	private:
 		std::string id;
 		Queue_Probe RequestQueueProbe;

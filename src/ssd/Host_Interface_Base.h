@@ -8,6 +8,7 @@
 #include "../host/PCIe_Message.h"
 #include "User_Request.h"
 #include "Data_Cache_Manager_Base.h"
+#include "Stats.h"
 #include <stdint.h>
 #include <cstring>
 
@@ -40,6 +41,8 @@ namespace SSD_Components
 		unsigned int STAT_number_of_write_transactions;
 		sim_time_type STAT_sum_of_read_transactions_execution_time, STAT_sum_of_read_transactions_transfer_time, STAT_sum_of_read_transactions_waiting_time;
 		sim_time_type STAT_sum_of_write_transactions_execution_time, STAT_sum_of_write_transactions_transfer_time, STAT_sum_of_write_transactions_waiting_time;
+	
+		void ClearStats();
 	};
 
 	class Input_Stream_Manager_Base
@@ -62,6 +65,8 @@ namespace SSD_Components
 		uint32_t Get_average_write_transaction_execution_time(stream_id_type stream_id);//in microseconds
 		uint32_t Get_average_write_transaction_transfer_time(stream_id_type stream_id);//in microseconds
 		uint32_t Get_average_write_transaction_waiting_time(stream_id_type stream_id);//in microseconds
+
+		void ClearStats();
 	protected:
 		Host_Interface_Base* host_interface;
 		virtual void segment_user_request(User_Request* user_request) = 0;
@@ -127,6 +132,8 @@ namespace SSD_Components
 		void Attach_to_device(Host_Components::PCIe_Switch* pcie_switch);
 		LHA_type Get_max_logical_sector_address();
 		unsigned int Get_no_of_LHAs_in_an_NVM_write_unit();
+	
+		void ClearStats();
 	protected:
 		HostInterface_Types type;
 		LHA_type max_logical_sector_address;

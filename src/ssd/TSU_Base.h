@@ -65,6 +65,7 @@ public:
 	virtual void Schedule() = 0;
 	virtual void Report_results_in_XML(std::string name_prefix, Utils::XmlWriter &xmlwriter);
 
+	virtual void ClearStats() = 0;
 protected:
 	FTL *ftl;
 	NVM_PHY_ONFI_NVDDR2 *_NVMController;

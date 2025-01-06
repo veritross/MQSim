@@ -194,6 +194,65 @@ void TSU_Priority_OutOfOrder::Report_results_in_XML(std::string name_prefix, Uti
     xmlwriter.Write_close_tag();
 }
 
+void TSU_Priority_OutOfOrder::ClearStats()
+{
+     for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            for (unsigned int priorityClass = 0; priorityClass < IO_Flow_Priority_Class::NUMBER_OF_PRIORITY_LEVELS; priorityClass++)
+            {
+                UserReadTRQueue[channelID][chip_cntr][priorityClass].ClearStats();
+            }
+        }
+    }
+    for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            for (unsigned int priorityClass = 0; priorityClass < IO_Flow_Priority_Class::NUMBER_OF_PRIORITY_LEVELS; priorityClass++)
+            {
+                UserWriteTRQueue[channelID][chip_cntr][priorityClass].ClearStats();
+            }
+        }
+    }
+    for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            MappingReadTRQueue[channelID][chip_cntr].ClearStats();
+        }
+    }
+    for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            MappingWriteTRQueue[channelID][chip_cntr].ClearStats();
+        }
+    }
+    for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            GCReadTRQueue[channelID][chip_cntr].ClearStats();
+        }
+    }
+    for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            GCWriteTRQueue[channelID][chip_cntr].ClearStats();
+        }
+    }
+    for (unsigned int channelID = 0; channelID < channel_count; channelID++)
+    {
+        for (unsigned int chip_cntr = 0; chip_cntr < chip_no_per_channel; chip_cntr++)
+        {
+            GCEraseTRQueue[channelID][chip_cntr].ClearStats();
+        }
+    }
+}
+
 void TSU_Priority_OutOfOrder::Schedule()
 {
     opened_scheduling_reqs--;

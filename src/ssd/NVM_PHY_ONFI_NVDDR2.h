@@ -81,7 +81,7 @@ namespace SSD_Components
 		unsigned int WaitingReadTXCount;
 		unsigned int No_of_active_dies;
 
-		void PrepareSuspend() { HasSuspend = true; No_of_active_dies = 0; }
+		void PrepareSuspend() { HasSuspend = false; No_of_active_dies = 0; }
 		void PrepareResume() { HasSuspend = false; }
 	};
 
