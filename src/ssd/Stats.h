@@ -40,6 +40,9 @@ namespace SSD_Components
 
 		static unsigned int***** Block_erase_histogram;
 
+		static unsigned long ramWrite;
+		static unsigned long unramWrite;
+
 		static std::map<uint16_t, User_Request*> stored_request;
 	};
 }

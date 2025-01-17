@@ -24,7 +24,6 @@ IO_Flow_Base::IO_Flow_Base(const sim_object_id_type &name, uint16_t flow_id, LHA
 																												enabled_logging(enabled_logging), logging_period(logging_period), logging_file_path(logging_file_path)
 {
 	Host_IO_Request *t = NULL;
-
 	switch (SSD_device_type)
 	{
 	case HostInterface_Types::NVME:
@@ -113,6 +112,7 @@ IO_Flow_Base::IO_Flow_Base(const sim_object_id_type &name, uint16_t flow_id, LHA
 	
 	IO_Flow_Base::~IO_Flow_Base()
 	{
+		PRINT_MESSAGE(i)
 		log_file.close();
 		for(auto &req : waiting_requests) {
 			if (req) {

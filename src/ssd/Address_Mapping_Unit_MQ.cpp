@@ -10,7 +10,7 @@ namespace SSD_Components{
     Address_Mapping_Unit_MQ* Address_Mapping_Unit_MQ::_my_instance = NULL;
     Address_Mapping_Unit_MQ::Address_Mapping_Unit_MQ(const sim_object_id_type &id, FTL *ftl, NVM_PHY_ONFI *flash_controller, Flash_Block_Manager_MQ *block_manager, bool ideal_mapping_table, unsigned int cmt_capacity_in_byte, unsigned int ConcurrentStreamNo, unsigned int ChannelCount, unsigned int chip_no_per_channel, unsigned int DieNoPerChip, unsigned int PlaneNoPerDie, std::vector<std::vector<flash_channel_ID_type>> stream_channel_ids, std::vector<std::vector<flash_chip_ID_type>> stream_chip_ids, std::vector<std::vector<flash_die_ID_type>> stream_die_ids, std::vector<std::vector<flash_plane_ID_type>> stream_plane_ids, unsigned int Block_no_per_plane, unsigned int Page_no_per_block, unsigned int SectorsPerPage, unsigned int PageSizeInBytes)
     : Sim_Object(id), ftl(ftl), flash_controller(flash_controller), block_manager(block_manager),
-		ideal_mapping_table(ideal_mapping_table), no_of_input_streams(no_of_input_streams),
+		ideal_mapping_table(ideal_mapping_table), no_of_input_streams(ConcurrentStreamNo),
 		channel_count(ChannelCount), chip_no_per_channel(chip_no_per_channel), die_no_per_chip(DieNoPerChip), plane_no_per_die(PlaneNoPerDie),
 		block_no_per_plane(Block_no_per_plane), pages_no_per_block(Page_no_per_block), sector_no_per_page(SectorsPerPage)
 	{
@@ -97,9 +97,13 @@ namespace SSD_Components{
     Address_Mapping_Unit_MQ::~Address_Mapping_Unit_MQ()
     {
         for (unsigned int i = 0; i < no_of_input_streams; i++) {
-			delete domains[i];
-		}
-		delete[] domains;
+        if (domains[i]) {
+            delete domains[i];
+            domains[i] = nullptr;  // Dangling pointer 방지
+        }
+    }
+    delete[] domains;
+    domains = nullptr;  // Dangling pointer 방지
     }
 
     void Address_Mapping_Unit_MQ::Setup_triggers()
@@ -337,9 +341,8 @@ namespace SSD_Components{
 		if(block_manager->Stop_servicing_writes(tr->level)){
 			return NO_PPA;
 		} else{
-			block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, false);
+			block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, false, true);
 			PPA_type ppa = Convert_address_to_ppa(tr->Address);
-			block_manager->Program_transaction_serviced(ppa);
 			domains[tr->Stream_id]->Update_mapping_info(ideal_mapping_table, tr->Stream_id, tr->LPA, ppa, tr->read_sectors_bitmap);
 			return ppa;
 		}
@@ -515,6 +518,7 @@ namespace SSD_Components{
 				// Case of RAM is not needed.
 				if (status_intersection == prev_page_status) {
 					block_manager->Invalidate_page_in_block(tr->Stream_id, old_ppa);
+					Stats::ramWrite++;
 				}
 				// Case of RAM is needed.
 				else {
@@ -526,13 +530,14 @@ namespace SSD_Components{
 					block_manager->Read_transaction_issued(old_ppa);//Inform block manager about a new transaction as soon as the transaction's target address is determined
 					block_manager->Invalidate_page_in_block(tr->Stream_id, old_ppa);
 					tr->RelatedRead = update_read_tr;
+					Stats::unramWrite++;
 				}
 				block_manager->handleHotFilter(tr->LPA, old_ppa, forGC);
 			}
 
 		}
 
-		block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, forGC);
+		block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, forGC, false);
 		tr->PPA = Convert_address_to_ppa(tr->Address);
 		domain->Update_mapping_info(ideal_mapping_table, tr->Stream_id, tr->LPA, tr->PPA, 
 			((NVM_Transaction_Flash_WR*)tr)->write_sectors_bitmap | domain->Get_page_status(ideal_mapping_table, tr->Stream_id, tr->LPA));

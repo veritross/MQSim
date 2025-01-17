@@ -139,8 +139,7 @@ inline void Input_Stream_Manager_NVMe::Handle_serviced_request(User_Request *req
 
 	inform_host_request_completed(stream_id, request); //Completion queue is not full, so the device can DMA the completion queue entry to the host
 	
-	//d_Stats2. Delay deleting user request for print detail of user request when finish the request.
-	//DELETE_REQUEST_NVME(request);
+	DELETE_REQUEST_NVME(request);
 }
 
 uint16_t Input_Stream_Manager_NVMe::Get_submission_queue_depth(stream_id_type stream_id)

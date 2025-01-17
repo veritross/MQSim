@@ -78,7 +78,7 @@ namespace SSD_Components
 		Flash_Block_Manager_MQ(FTL* ftl, uint32_t channelCount, uint32_t chipsPerChannel, uint32_t diesPerChip, uint32_t planesPerDie, uint32_t blocksPerPlane, uint32_t pagesPerBlock);
 		~Flash_Block_Manager_MQ();
 	
-        void Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address& address, LPA_type lpa, uint32_t& level, bool forGC);
+        void Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address& address, LPA_type lpa, uint32_t& level, bool forGC, bool forRead);
         void Allocate_mapping_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address& address);
         
         void Read_transaction_issued(const PPA_type& ppa);

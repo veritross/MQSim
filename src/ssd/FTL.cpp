@@ -902,6 +902,13 @@ namespace SSD_Components
 		val = std::to_string(double(Stats::Total_page_movements_for_wl) / double(Stats::Total_wl_executions));
 		xmlwriter.Write_attribute_string_inline(attr, val);
 
+		attr = "UNRAM WRITE COUNT";
+		val = std::to_string(Stats::unramWrite);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+		attr = "RAM WRITE COUNT";
+		val = std::to_string(Stats::ramWrite);
+		xmlwriter.Write_attribute_string_inline(attr, val);
+
 		xmlwriter.Write_end_element_tag();
 	}
 

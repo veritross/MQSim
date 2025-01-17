@@ -9,8 +9,8 @@
 			<Die_IDs>0,1</Die_IDs>
 			<Plane_IDs>0,1</Plane_IDs>
 			<Initial_Occupancy_Percentage>70</Initial_Occupancy_Percentage>
-			<Load_File_Path>traces/logLE_S.xml</Load_File_Path>
-			<File_Path>traces/logRE_S.xml</File_Path>
+			<Load_File_Path>traces/logLF_S.xml</Load_File_Path>
+			<File_Path>traces/logRF_S.xml</File_Path>
 			<Percentage_To_Be_Executed>100</Percentage_To_Be_Executed>
 			<Relay_Count>1</Relay_Count>
 			<Time_Unit>NANOSECOND</Time_Unit>

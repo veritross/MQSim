@@ -8,7 +8,9 @@ namespace MQSimEngine
 
 	Engine* Engine::Instance() {
 		if (_instance == 0) {
+
 			_instance = new Engine;
+			_instance->loadMileStone = 0;
 		}
 		return _instance;
 	}

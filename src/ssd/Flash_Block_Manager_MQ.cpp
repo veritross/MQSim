@@ -141,10 +141,14 @@ namespace SSD_Components{
     bool Flash_Block_Manager_MQ::overGCThreshold(level_type level)
     {
         if(isLastQueue(level)){
-            if(queues.at(level)->currentErasingBlocksCount > (double)queues.at(level)->blockList.size() * 0.01){
-                return false;
+            if(queues.at(level)->blockList.size() > 100){
+                if(queues.at(level)->currentErasingBlocksCount > (double)queues.at(level)->blockList.size() * 0.01){
+                    return false;
+                } else{
+                    return ((double)queues.at(level)->blockList.size()) * 0.99 < queues.at(level)->currentBlockIdx;
+                }
             } else{
-                return ((double)queues.at(level)->blockList.size()) * 0.99 < queues.at(level)->currentBlockIdx;
+                return Stop_servicing_writes(level);
             }
         } else {
             return Stop_servicing_writes(level);
@@ -160,36 +164,62 @@ namespace SSD_Components{
     {
         UID* uid = lui->getUID();
         if(uid == nullptr) return;
+        std::queue<Block_Type*> freeBlockPool;
         std::queue<Block_Type*> blockPool;
 
         while(queues.size() < uid->groupConf.size()){
             createQueue();
         }
 
-        // Pop the blocks from queues.
-        for(uint32_t groupNumber = 0; groupNumber < queueCount; groupNumber++){
-            Block_Queue* currentQueue = queues.at(groupNumber);
-            int popCount = 0;
-            if(uid->groupConf.size() < groupNumber + 1){
-                popCount = currentQueue->blockList.size();
-            } else{
-                popCount = (currentQueue->blockList.size() - uid->groupConf.at(groupNumber));
-            }
-            while(popCount > 0){
-                Block_Type* blockToPop = currentQueue->blockList.back();
+        // // Pop the blocks from queues.
+        // for(uint32_t groupNumber = 0; groupNumber < queueCount; groupNumber++){
+        //     Block_Queue* currentQueue = queues.at(groupNumber);
+        //     int popCount = 0;
+        //     if(uid->groupConf.size() < groupNumber + 1){
+        //         popCount = currentQueue->blockList.size();
+        //     } else{
+        //         popCount = (currentQueue->blockList.size() - uid->groupConf.at(groupNumber));
+        //     }
+        //     while(popCount > 0){
+        //         Block_Type* blockToPop = currentQueue->blockList.back();
 
-                if(blockToPop->status == MQ_Block_Status::IDLE){
-                    // If there is a block is not used, just pop.
-                    blockPool.push(blockToPop);
-                    currentQueue->blockList.pop_back();
-                } else{
-                    // Else, pop the head block.
-                    blockPool.push(currentQueue->blockList.front());
-                    currentQueue->blockList.erase(currentQueue->blockList.begin());
-                }
-                popCount--;
+        //         if(blockToPop->status == MQ_Block_Status::IDLE){
+        //             // If there is a block is not used, just pop.
+        //             freeBlockPool.push(blockToPop);
+        //             currentQueue->blockList.pop_back();
+        //         } else{
+        //             // Else, pop the head block.
+        //             blockPool.push(currentQueue->blockList.front());
+        //             currentQueue->blockList.erase(currentQueue->blockList.begin());
+        //         }
+        //         popCount--;
+        //     }
+        // }
+
+        // Block_Queue* lastQueue = queues.at(uid->groupConf.size() - 1);
+        // while(!lastQueue->blockList.empty()){
+        //     Block_Type* blockToPop = lastQueue->blockList.back();
+        //     if(blockToPop->status != MQ_Block_Status::IDLE){
+        //         blockPool.push(blockToPop);
+        //     } else{
+        //         freeBlockPool.push(blockToPop);
+        //     }
+        //     lastQueue->blockList.pop_back();
+        // }
+
+        // while(lastQueue->blockList.size() < uid->groupConf.back() && !freeBlockPool.empty()){
+        //     lastQueue->enqueueBlock(freeBlockPool.front());
+        //     freeBlockPool.pop();
+        // }
+
+        for(auto queue : queues){
+            for(auto block : queue->blockList){
+                if(block->status == MQ_Block_Status::IDLE) freeBlockPool.push(block);
+                else blockPool.push(block);
             }
+            queue->blockList.clear();
         }
+
 
         // Push the blocks to queues.
         for(uint32_t pushTargetQueueIdx = 0; pushTargetQueueIdx < uid->groupConf.size(); pushTargetQueueIdx++){
@@ -201,8 +231,12 @@ namespace SSD_Components{
                 pushCount = uid->groupConf.at(pushTargetQueueIdx) - pushTargetQueue->blockList.size();
             }
             while(pushCount > 0){
-                Block_Type* pushBlock = blockPool.front(); blockPool.pop();
-
+                Block_Type* pushBlock;
+                if(!blockPool.empty()){
+                    pushBlock = blockPool.front(); blockPool.pop();
+                } else{
+                    pushBlock = freeBlockPool.front(); freeBlockPool.pop();
+                }
                 if(pushBlock->status == MQ_Block_Status::WORKING){
                     if(pushBlock->prevQueue > pushTargetQueueIdx){
                         auto itr = pushTargetQueue->blockList.begin();
@@ -213,7 +247,7 @@ namespace SSD_Components{
                             }
                         }
                         pushTargetQueue->blockList.insert(itr, 1, pushBlock);
-                    } else if(pushBlock->prevQueue < pushTargetQueueIdx){
+                    } else if(pushBlock->prevQueue <= pushTargetQueueIdx){
                         auto itr = pushTargetQueue->blockList.rbegin();
                         for(; itr != pushTargetQueue->blockList.rend(); itr++){
                             if((*itr)->status != MQ_Block_Status::IDLE){
@@ -221,8 +255,6 @@ namespace SSD_Components{
                             }
                         }
                         pushTargetQueue->blockList.insert(itr.base(), 1, pushBlock);
-                    } else{
-                        PRINT_ERROR("Push and target are equal in push block")
                     }
                     pushBlock->prevQueue = pushTargetQueueIdx;
                 } else if(pushBlock->status == MQ_Block_Status::ERASING){
@@ -235,9 +267,10 @@ namespace SSD_Components{
                 pushCount--;
             }
         }
-        queueCount = uid->groupConf.size();
 
-        for(int groupNumber = queueCount - 1; groupNumber > -1; groupNumber--){
+        queueCount = uid->groupConf.size();
+        
+        for(int groupNumber = 0; groupNumber < queueCount; groupNumber++){
             Block_Queue* curQueue = queues.at(groupNumber);
             curQueue->adjustBlockIdx(pagesPerBlock);
             if(overGCThreshold(groupNumber)){
@@ -261,13 +294,13 @@ namespace SSD_Components{
 
     void Flash_Block_Manager_MQ::handleLUIBlockAge(Block_Type *block)
     {
-        if(isLastQueue(block->prevQueue)){
-            lui->addBlockAge(block, Queue_Type::LAST_QUEUE);
-        } else{
-            if(block->prevQueue == 0){
-                lui->addBlockAge(block, Queue_Type::HOT_QUEUE);
-            }
-        }
+        // if(isLastQueue(block->prevQueue)){
+        //     lui->addBlockAge(block, Queue_Type::LAST_QUEUE);
+        // } else{
+        //     if(block->prevQueue == 0){
+        //         lui->addBlockAge(block, Queue_Type::HOT_QUEUE);
+        //     }
+        // }
     }
 
     Flash_Block_Manager_MQ::Flash_Block_Manager_MQ(FTL *ftl, uint32_t channelCount, uint32_t chipsPerChannel, uint32_t diesPerChip, uint32_t planesPerDie, uint32_t blocksPerPlane, uint32_t pagesPerBlock)
@@ -277,11 +310,11 @@ namespace SSD_Components{
 
         uint64_t totalBlockCount = channelCount * chipsPerChannel * diesPerChip * planesPerDie * blocksPerPlane;
         
-        for(uint32_t channelID = 0; channelID < channelCount; channelID++){
-            for(uint32_t chipID = 0; chipID < chipsPerChannel; chipID++){
+                        for(uint32_t channelID = 0; channelID < channelCount; channelID++){
+                    for(uint32_t chipID = 0; chipID < chipsPerChannel; chipID++){
                 for(uint32_t dieID = 0; dieID < diesPerChip; dieID++){
-                    for(uint32_t planeID = 0; planeID < planesPerDie; planeID++){
-                        for(uint32_t blockID = 0; blockID < blocksPerPlane; blockID++){
+            for(uint32_t planeID = 0; planeID < planesPerDie; planeID++){
+        for(uint32_t blockID = 0; blockID < blocksPerPlane; blockID++){
                             NVM::FlashMemory::Physical_Page_Address blockAddr = NVM::FlashMemory::Physical_Page_Address(channelID, chipID, dieID, planeID, blockID, 0);
                             Block_Type* newBlock = new Block_Type(blockAddr);
                             blocks.push_back(newBlock);
@@ -293,7 +326,7 @@ namespace SSD_Components{
 
         // In initialize, # of queues is 8.
         // And all queues have same amount of blocks.
-        queueCount = 2;
+        queueCount = 4;
         for(uint32_t i = 0; i < queueCount; i++){
             createQueue();
         }
@@ -321,15 +354,18 @@ namespace SSD_Components{
         for(auto block : blocks){
             delete block;
         }
+        for(auto queue : queues){
+            delete queue;
+        }
+        delete this->lui;
     }
 
-    void Flash_Block_Manager_MQ::Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address &address, LPA_type lpa, uint32_t& level, bool forGC)
+    void Flash_Block_Manager_MQ::Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address &address, LPA_type lpa, uint32_t& level, bool forGC, bool forRead)
     {
         if(queueCount + 1 < level){
             level = queueCount - 1;
         }
 
-        startGroupConfiguration();
 
         Block_Queue* queue = queues.at(level);
 
@@ -340,9 +376,12 @@ namespace SSD_Components{
         address = *block->blockAddr;
         address.PageID = block->currentPageIdx++;
         
-        if(!forGC){
-		    lui->updateTable(lpa);
-            Program_transaction_issued(block);
+        if(!forRead){
+            startGroupConfiguration();
+            if(!forGC){
+                lui->updateTable(lpa);
+                Program_transaction_issued(block);
+            }
         }
 
         if(block->currentPageIdx == pagesPerBlock){

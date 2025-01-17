@@ -1,6 +1,7 @@
 #include "Log_Update_Interval.h"
 #include "Sim_Defs.h"
 #include "Flash_Block_Manager_MQ.h"
+#include <cmath>
 
 namespace SSD_Components{
 
@@ -8,26 +9,48 @@ namespace SSD_Components{
     const lui_timestamp CON::TIMESTAMP_NOT_ACCESSED = UINT64_MAX;
     const uint8_t CON::HOT_FILTER_BITS_COUNT = 2;
 
-    const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 1e4;
-    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 1e4;
+    const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 88000;
+    // const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 1e4;
+    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 88000;
+    // const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 1e4;
 
     const double CON::NOTICIBLE_REDUCTION_CRITERIA = 0.005;
     const uint8_t CON::NOT_NOTICIBLE_REDUCTION_THRESHOLD = 5;
 
     const double CON::UID_SELECTION_THRESHOLD = 0.005;
 
+    const uint32_t CON::LIMITATION_GROUP_CONF = 20;
+
     HotFilter::HotFilter(uint64_t noOfPages)
     {
-        filter.resize(noOfPages, 0);
+        vectorCount = ((noOfPages * 2) / 64);
+        filter = new uint64_t[vectorCount];
     }
 
     HotFilter::~HotFilter()
     {
+        delete[] filter;
     }
 
     void HotFilter::clearFilter()
     {
-        std::fill(filter.begin(), filter.end(), 0);
+        for(int i = 0; i < vectorCount; i++){
+            filter[i] = 0;
+        }
+    }
+
+    uint8_t HotFilter::getFilter(const LPA_type lpa)
+    {
+        uint64_t& vector = filter[(lpa * 2) / 64];
+        uint8_t bit = ((vector & (0b11 << ((lpa * 2) % 64))) >> ((lpa * 2) % 64));
+        return bit;
+    }
+
+    void HotFilter::setFilter(const LPA_type lpa, const uint8_t newBit)
+    {
+        uint64_t& vector = filter[(lpa * 2) / 64];
+        vector &= (0b00 << ((lpa * 2) % 64));
+        vector |= (newBit << ((lpa * 2) % 64));
     }
 
     UID::UID(){
@@ -38,173 +61,151 @@ namespace SSD_Components{
     :groupConf(groupConf) {}
 
 
-    double UID::createUID(const std::vector<uint64_t> &intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock)
+    double UID::createUID(const std::map<uint64_t, uint64_t> &intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock)
     {
-        if(this->groupConf.size() > 0){
-            PRINT_ERROR("Create UID : UID is already charged. size - " << this->groupConf.size())
-        }
-        auto hotSplit = [&]() -> double {
-           
-            uint32_t hotBlocksCount = (intervalCountTable[0] / pagesPerBlock) + 1;
-            this->groupConf.push_back(hotBlocksCount);
-            this->groupConf.push_back(totalBlocksCount - hotBlocksCount);
-            uint32_t prevGroupIdx = 0;
-            uint32_t nextGroupIdx = 1;
 
-            uint32_t optPrevGroupCount = hotBlocksCount;
-            double optWAF = 10000.0;
-
-            double prevWAF = 10000.0;
-
-            while(true){
-                prevWAF = this->getWAF(intervalCountTable, totalReqs);
-                if(prevWAF < optWAF){
-                    optWAF = prevWAF;
-                    optPrevGroupCount = this->groupConf.at(prevGroupIdx);
-                } else if(!CON::IS_ZERO(optWAF - prevWAF)){
-                    break;
-                }
-
-                if(this->groupConf.at(nextGroupIdx) == MIN_QUEUE_SIZE){
-                    break;
-                }
-                this->groupConf.at(prevGroupIdx)++;
-                this->groupConf.at(nextGroupIdx)--;
-            }
-
-            if(CON::IS_ZERO(optWAF - 10000.0)){
-                return optWAF;
-            } else{
-                uint32_t curBlocksCount = this->groupConf.at(prevGroupIdx) + this->groupConf.at(nextGroupIdx);
-                this->groupConf.at(prevGroupIdx) = optPrevGroupCount;
-                this->groupConf.at(nextGroupIdx) = curBlocksCount - optPrevGroupCount;
-                return optWAF;
-            }
-        };
-
-        auto split = [&]() -> double {
-            uint32_t prevGroupIdx = this->groupConf.size() - 1;
-            uint32_t nextGroupIdx = this->groupConf.size();
-            this->groupConf.push_back(this->groupConf.at(prevGroupIdx) - MIN_QUEUE_SIZE);
-            this->groupConf.at(prevGroupIdx) = MIN_QUEUE_SIZE;
-
-            uint32_t optPrevGroupCount = this->groupConf.at(prevGroupIdx);
-            double optWAF = 10000.0;
-
-            double prevWAF = 10000.0;
-
-            while(true){
-                prevWAF = this->getWAF(intervalCountTable, totalReqs);
-                if(prevWAF < optWAF){
-                    optWAF = prevWAF;
-                    optPrevGroupCount = this->groupConf.at(prevGroupIdx);
-                } else if(!CON::IS_ZERO(optWAF - prevWAF)){
-                    break;
-                }
-
-                if(this->groupConf.at(nextGroupIdx) == MIN_QUEUE_SIZE){
-                    break;
-                }
-                this->groupConf.at(prevGroupIdx)++;
-                this->groupConf.at(nextGroupIdx)--;
-            }
-
-            if(CON::IS_ZERO(optWAF - 10000.0)){
-                return optWAF;
-            } else{
-                uint32_t curBlocksCount = this->groupConf.at(prevGroupIdx) + this->groupConf.at(nextGroupIdx);
-                this->groupConf.at(prevGroupIdx) = optPrevGroupCount;
-                this->groupConf.at(nextGroupIdx) = curBlocksCount - optPrevGroupCount;
-                return optWAF;
-            }
-        };
-
-        double optWAF = hotSplit();
-        std::vector<uint32_t> optGroupConf = this->groupConf;
-
-        double prevWAF = 0.0;
         uint8_t notNoticibleReductionCount = 0;
+        this->groupConf.push_back(totalBlocksCount);
+        std::vector<std::pair<double, double>> transitionProb;
+        transitionProb.push_back({0.0, 0.0});
 
+        std::vector<uint32_t> optGroupConf;
+
+        double hotTrafficRatio = intervalCountTable.at(0) / (double)totalReqs;
+        UIDS startUIDS;
+        startUIDS.lastItr = intervalCountTable.begin();
+        startUIDS.sumOfP = 0.0;
+        startUIDS.WAF = 10000.0;
+        UIDS* prevUIDS = split(intervalCountTable, transitionProb, &startUIDS, totalReqs, hotTrafficRatio, true);
+        prevUIDS->WAF = 10000.0;
+        UIDS* newUIDS;
         while(true){
-            prevWAF = split();
-            if(prevWAF < optWAF){
-                if(prevWAF < optWAF * (1.0 - CON::NOTICIBLE_REDUCTION_CRITERIA)){
-                    optWAF = prevWAF;
-                    optGroupConf = this->groupConf;
+            newUIDS = nullptr;
+            if(this->groupConf.back() <= 2 * MIN_QUEUE_SIZE || 
+                this->groupConf.size() == CON::LIMITATION_GROUP_CONF){
+                    break;
+                }
+            
+            newUIDS = split(intervalCountTable, transitionProb, prevUIDS, totalReqs, hotTrafficRatio, false);
+            if(newUIDS->WAF < prevUIDS->WAF){
+                if(newUIDS->WAF < prevUIDS->WAF - CON::NOTICIBLE_REDUCTION_CRITERIA){
                     notNoticibleReductionCount = 0;
                 } else{
                     notNoticibleReductionCount++;
                 }
+                delete prevUIDS;
+                std::swap(newUIDS, prevUIDS);
+                optGroupConf = this->groupConf;
 
                 if(notNoticibleReductionCount == CON::NOT_NOTICIBLE_REDUCTION_THRESHOLD){
                     break;
                 }
-            } else if(!CON::IS_ZERO(optWAF - prevWAF)){
+            } else{
                 break;
             }
         }
-
         this->groupConf = optGroupConf;
+        double optWAF = prevUIDS->WAF;
+        if(newUIDS) delete newUIDS;
+        if(prevUIDS) delete prevUIDS;
+        if(this->groupConf.back() == 0){
+            this->groupConf.pop_back();
+        }
+
+
+        uint32_t* lastGroupConf = &groupConf.back();
+        uint32_t* curGroupConf;
+        for(uint32_t groupIdx = 0; groupIdx < groupConf.size() - 1; groupIdx++){
+            curGroupConf = &groupConf.at(groupIdx);
+            while((*curGroupConf) > MIN_QUEUE_SIZE){
+                (*curGroupConf)--;
+                (*lastGroupConf)++;
+                double newWAF = getWAF(intervalCountTable, totalReqs);
+                if(newWAF < optWAF){
+                    optWAF = newWAF;
+                } else{
+                    (*curGroupConf)++;
+                    (*lastGroupConf)--;
+                    break;
+                }
+            }
+        }
+
+        int pushCount = (totalBlocksCount / 16) - (*lastGroupConf);
+        uint32_t groupIdx = groupConf.size() - 2;
+        while(pushCount > 0){
+            curGroupConf = &groupConf.at(groupIdx);
+            if((*curGroupConf) > MIN_QUEUE_SIZE){
+                (*curGroupConf)--;
+                (*lastGroupConf)++;
+                pushCount--;
+            } else{
+                groupIdx--;
+            }
+        }
+
         return optWAF;
     }
     
-    double UID::getWAF(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs)
+    double UID::getWAF(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs)
     {
         // 4.4 Estimating Transition Probabilities.
         std::vector<double> p = std::vector<double>(groupConf.size(), 0.0);
         std::vector<uint32_t> waitingPeriod = std::vector<uint32_t>(groupConf.size(), 0);
 
-        uint32_t intervalCountTableIdx = 0;
+        auto intervalCountTableItr = intervalCountTable.begin();
 
         double sumOfP = 0.0;
-        waitingPeriod.at(0) = groupConf.at(0) / (1.0 - sumOfP);
-        for(; intervalCountTableIdx < waitingPeriod.at(0); intervalCountTableIdx++){
-            p.at(0) += ((double)intervalCountTable.at(intervalCountTableIdx) / (double)totalReqs);
+        waitingPeriod.at(0) = groupConf.at(0) / (1.0 - sumOfP) + 1;
+        for(; intervalCountTableItr->first < waitingPeriod.at(0) && intervalCountTableItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; intervalCountTableItr++){
+            p.at(0) += (double)(intervalCountTableItr->second) / (double)totalReqs;
         }
         sumOfP += p.at(0);
 
         for(int i = 1; i < groupConf.size(); i++){
-            waitingPeriod.at(i) = (groupConf.at(i) / (1.0 - sumOfP)) + waitingPeriod.at(i - 1);
-            for(; intervalCountTableIdx < waitingPeriod.at(i) && intervalCountTableIdx < intervalCountTable.size() - 1; intervalCountTableIdx++){
-                p.at(i) += ((double)intervalCountTable.at(intervalCountTableIdx) / (double)totalReqs);
+            waitingPeriod.at(i) = (groupConf.at(i) / (1.0 - sumOfP)) + waitingPeriod.at(i - 1) + 1;
+            for(; intervalCountTableItr->first < waitingPeriod.at(i) && intervalCountTableItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; intervalCountTableItr++){
+                p.at(i) += ((double)intervalCountTableItr->second / (double)totalReqs);
             }
             sumOfP += p.at(i);
         }
 
-        double tmp = 0.0;
-        for(; intervalCountTableIdx < intervalCountTable.size(); intervalCountTableIdx++){
-            tmp += (double)intervalCountTable.at(intervalCountTableIdx) / (double(totalReqs));
+        double lastP = 0.0;
+        for(; intervalCountTableItr != intervalCountTable.end(); intervalCountTableItr++){
+            lastP += ((double)intervalCountTableItr->second / (double)totalReqs);
         }
-        
-        return MarkovChain(p, (tmp / (p.back() + tmp)), ((double)intervalCountTable.at(0) / (double)totalReqs));
+        std::vector<std::pair<double, double>> transitionProb;
+        transitionProb.resize(groupConf.size());
+
+        sumOfP = p.back() + lastP;
+        transitionProb.back() = {lastP / sumOfP, 1.0 - (lastP / sumOfP)};
+        for(int i = transitionProb.size() - 2; i >= 0; i--){
+            transitionProb.at(i).first = sumOfP / (sumOfP + p.at(i));
+            transitionProb.at(i).second = 1.0 - transitionProb.at(i).first;
+            sumOfP += p.at(i);
+        }
+
+        double hotTrafficRatio = 0.0;
+        if(intervalCountTable.find(0) != intervalCountTable.end()){
+            hotTrafficRatio = ((double)intervalCountTable.at(0) / (double)totalReqs);
+        }
+        return MarkovChain(transitionProb, hotTrafficRatio);
     }
 
-    double UID::MarkovChain(const std::vector<double>& p, double lastBlocksAvgValidPagesRatio, double hotTrafficRatio)
+    double UID::MarkovChain(const std::vector<std::pair<double, double>>& transitionProb, double hotTrafficRatio)
     {
         // 4.3. Prediction of WAF using MCAM.
 
         //1. G(n) -> G(n + 1).
         //2. G(n) -> Free.
-        std::vector<std::pair<double, double>> transitionProb;
-        transitionProb.resize(p.size());
 
         //1. Free -> G(hot).
         //2. Free -> G(1).
         std::pair<double, double> freeNode = {hotTrafficRatio, 1.0 - hotTrafficRatio};
-
-        transitionProb.front() = {1.0 - p.at(0), p.at(0)};
-
-        double sumOfP = p.back();
-        for(int i = transitionProb.size() - 2; i > 0; i--){
-            transitionProb.at(i).first = sumOfP / (sumOfP + p.at(i));
-            transitionProb.at(i).second = 1.0 - transitionProb.at(i).first;
-        }
-        transitionProb.back() = {lastBlocksAvgValidPagesRatio, 1.0 - lastBlocksAvgValidPagesRatio};
-
         std::vector<double> nodesCurEpoch;
         std::vector<double> nodesNextEpoch;
-        nodesCurEpoch.resize(p.size(), 0.0);
-        nodesNextEpoch.resize(p.size(), 0.0);
+        nodesCurEpoch.resize(transitionProb.size(), 0.0);
+        nodesNextEpoch.resize(transitionProb.size(), 0.0);
 
         double freeNodeCurEpoch = 100.0;
         double freeNodeNextEpoch = 0.0;
@@ -230,20 +231,125 @@ namespace SSD_Components{
 
         }
 
+        double userWrite = freeNodeCurEpoch;
+        double gcWrite = 0.0;
         // Hot and G1.
         if(groupConf.size() == 2){
-            return ((nodesCurEpoch.at(1) + (freeNodeCurEpoch * transitionProb.at(0).first))/ freeNodeCurEpoch);
+            gcWrite = nodesCurEpoch.at(1) - (freeNodeCurEpoch * hotTrafficRatio);
         }
         // Else.
         else{
-            double userWrite = (nodesCurEpoch.at(0) + nodesCurEpoch.at(1));
-            double gcWrite = 0.0;
-            for(uint32_t groupIdx = 2; groupIdx < nodesCurEpoch.size(); groupIdx++){
-                gcWrite += nodesCurEpoch.at(groupIdx);
+            for(uint32_t nodeIdx = 2; nodeIdx < nodesCurEpoch.size(); nodeIdx++){
+                gcWrite += nodesCurEpoch.at(nodeIdx);
             }
             gcWrite += nodesCurEpoch.at(0) * transitionProb.at(0).first;
-            return ((userWrite + gcWrite) / userWrite);
         }
+        return ((userWrite + gcWrite) / userWrite);
+    }
+
+    //beforeItr은 이전 groupConfig의 마지막.
+    UIDS* UID::split(const std::map<uint64_t, uint64_t> &intervalCountTable, std::vector<std::pair<double, double>>& transitionProb, const UIDS* lastUIDS, 
+        uint32_t totalReqs, double hotTrafficRatio, bool isHot)
+    {
+        UIDS* optUIDS = new UIDS();
+        optUIDS->WAF = 10000.0;
+        // Group Initialize.
+        this->groupConf.push_back(0);
+        uint32_t& prevGroupConf = this->groupConf.at(this->groupConf.size() - 2);
+        uint32_t optPrevGroupConf = prevGroupConf;
+        uint32_t& nextGroupConf = this->groupConf.at(this->groupConf.size() - 1);
+        prevGroupConf = MIN_QUEUE_SIZE - 1;
+        nextGroupConf = optPrevGroupConf - MIN_QUEUE_SIZE + 1;
+
+        uint32_t prevWaitingPeriod = 0;
+        uint32_t nextWaitingPeriod = 0;
+
+
+        // P initialize.
+        double prevP = 0.0;
+        double nextP = 0.0;
+        double lastP = 0.0;
+        auto prevItr = lastUIDS->lastItr; // Indicating the group divide line in interval count table.
+        auto nextItr = lastUIDS->lastItr; // Indicating the group divide line in interval count table.
+        while(CON::IS_ZERO(prevP) && nextGroupConf > MIN_QUEUE_SIZE){
+            prevGroupConf++;
+            nextGroupConf--;
+            prevWaitingPeriod = ((double)prevGroupConf * (1.0 / (1.0 - lastUIDS->sumOfP))) + lastUIDS->lastItr->first + 1;
+            for(; prevItr->first < prevWaitingPeriod && prevItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; prevItr++){
+                prevP += (double)prevItr->second / (double)totalReqs;
+            }
+        }
+        {
+            nextItr = prevItr;
+            nextWaitingPeriod = ((double)nextGroupConf * (1.0 / (1.0 - (lastUIDS->sumOfP + prevP))) + prevWaitingPeriod) + 1;
+            for(; nextItr->first < nextWaitingPeriod && nextItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; nextItr++){
+                nextP += (double)nextItr->second / (double)totalReqs;
+            }
+            auto tmp = nextItr;
+            for(; tmp != intervalCountTable.end(); tmp++){
+                lastP += (double)tmp->second / (double)totalReqs;
+            }
+        }
+
+        double newWAF = 0.0;
+        //1. G(n) -> G(n + 1).
+        //2. G(n) -> Free.
+        transitionProb.push_back({0.0, 0.0});
+        std::pair<double, double>& prevTransitionProb = transitionProb.at(transitionProb.size() - 2);
+        std::pair<double, double> optPrevTransitionProb = prevTransitionProb;
+        std::pair<double, double>& nextTransitionProb = transitionProb.at(transitionProb.size() - 1);
+        std::pair<double, double> optNextTransitionProb = optNextTransitionProb;
+        while(true){
+            // get transition probabilities.
+            prevTransitionProb.first = (nextP + lastP) / (prevP + nextP + lastP);
+            prevTransitionProb.second = (1.0 - prevTransitionProb.first);
+
+            nextTransitionProb.first = lastP / (lastP + nextP);
+            nextTransitionProb.second = (1.0 - nextTransitionProb.first);
+
+            newWAF = MarkovChain(transitionProb, hotTrafficRatio);
+            if(newWAF < optUIDS->WAF){
+                optUIDS->WAF = newWAF;
+                optUIDS->lastItr = prevItr;
+                optUIDS->sumOfP = lastUIDS->sumOfP + prevP;
+                optPrevGroupConf = prevGroupConf;
+                optPrevTransitionProb = prevTransitionProb;
+                optNextTransitionProb = nextTransitionProb;
+            } else break;
+            
+            if(nextGroupConf <= MIN_QUEUE_SIZE) break;
+
+            //get next size.
+            double changeP = 0.0;
+            while(CON::IS_ZERO(changeP)){
+                if(nextGroupConf <= MIN_QUEUE_SIZE) break;
+                prevGroupConf++;
+                nextGroupConf--;
+                prevWaitingPeriod = ((double)prevGroupConf * (1.0 / (1.0 - lastUIDS->sumOfP))) + lastUIDS->lastItr->first + 1;
+                for(; prevItr->first < prevWaitingPeriod && prevItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; prevItr++){
+                    changeP = ((double)prevItr->second / (double)totalReqs);
+                }
+                prevP += changeP;
+                nextP -= changeP;
+                nextP = CON::IS_ZERO(nextP) ? 0.0 : nextP;
+            }
+
+            changeP = 0.0;
+            nextWaitingPeriod = ((double)nextGroupConf * (1.0 / (1.0 - lastUIDS->sumOfP + prevP))) + prevWaitingPeriod + 1;
+            for(; nextItr->first < nextWaitingPeriod && nextItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; nextItr++){
+                changeP += ((double)nextItr->second / (double)totalReqs);
+            }
+            nextP += changeP;
+            lastP -= changeP;
+            lastP = CON::IS_ZERO(lastP) ? 0.0 : lastP;
+        }
+        
+        uint32_t totalGroupConf = prevGroupConf + nextGroupConf;
+        prevGroupConf = optPrevGroupConf;
+        nextGroupConf = totalGroupConf - optPrevGroupConf;
+        prevTransitionProb = optPrevTransitionProb;
+        nextTransitionProb = optNextTransitionProb;
+        return optUIDS;
     }
 
     Log_Update_Interval::Log_Update_Interval(uint64_t totalBlocksCount, uint32_t pagesPerBlock, const std::vector<uint32_t>& initialGroupConf)
@@ -257,9 +363,6 @@ namespace SSD_Components{
         totalErasedLastBlocksValidPagesCount = 0;
         totalHotBlocksValidPages = 0;
         hotFilter = new HotFilter(totalBlocksCount * pagesPerBlock);
-
-        updateIntervalTable.resize(CON::UPDATE_INTERVAL_TABLE_SIZE);
-        timestampTable.resize((totalBlocksCount * pagesPerBlock) / CON::TIMETABLE_ENTRY_UNIT, CON::TIMESTAMP_NOT_ACCESSED);
 
         currentUID = NULL;
         changeUIDTag = false;
@@ -278,12 +381,13 @@ namespace SSD_Components{
 
     bool Log_Update_Interval::isHot(const LPA_type lba)
     {
-        return (hotFilter->filter.at(lba) == 3);
+        uint8_t bit = hotFilter->getFilter(lba);
+        return (bit == 3);
     }
 
     void Log_Update_Interval::updateHotFilter(const LPA_type lba, const lui_timestamp blkAge, const level_type level, const bool forGC)
     {
-        uint8_t& bit = hotFilter->filter.at(lba);
+        uint8_t bit = hotFilter->getFilter(lba);
 
         if(forGC){
             if(bit > 0){
@@ -301,6 +405,8 @@ namespace SSD_Components{
                 }
             }
         }
+
+        hotFilter->setFilter(lba, bit);
     }
 
     void Log_Update_Interval::updateTable(const LPA_type lba)
@@ -327,6 +433,9 @@ namespace SSD_Components{
     void Log_Update_Interval::setTables(const LPA_type lba)
     {
         if(!CON::ENTRY_VERIFY(lba)) return;
+        if(timestampTable.find(lba / CON::TIMETABLE_ENTRY_UNIT) == timestampTable.end()){
+            timestampTable[lba / CON::TIMETABLE_ENTRY_UNIT] = CON::TIMESTAMP_NOT_ACCESSED;
+        }
         lui_timestamp& prevTimestamp = timestampTable[lba / CON::TIMETABLE_ENTRY_UNIT];
 
         if(prevTimestamp == CON::TIMESTAMP_NOT_ACCESSED){
@@ -342,6 +451,7 @@ namespace SSD_Components{
         }
     }
 
+    // Not running.
     void Log_Update_Interval::addBlockAge(const Block_Type* block, const Queue_Type queueType)
     {
         if(queueType == Queue_Type::HOT_QUEUE){
@@ -357,21 +467,23 @@ namespace SSD_Components{
 
     void Log_Update_Interval::clearTable()
     {
-        std::fill(updateIntervalTable.begin(), updateIntervalTable.end(), 0);
-        std::fill(timestampTable.begin(), timestampTable.end(), CON::TIMESTAMP_NOT_ACCESSED);
+        updateIntervalTable.clear();
+        timestampTable.clear();
     }
 
     void Log_Update_Interval::selectUID()
     {
         uint64_t totalReqs = 0;
+        PRINT_MESSAGE("Start group configuration...")
         for(auto updateIntervalTableEntry : updateIntervalTable){
-            totalReqs += updateIntervalTableEntry;
+            totalReqs += updateIntervalTableEntry.second;
         }
 
+        updateIntervalTable[CON::UPDATE_INTERVAL_TABLE_SIZE - 1] = 0;
         for(auto& timeTableEntry : timestampTable){
             //first access.
-            if(timeTableEntry != CON::TIMESTAMP_NOT_ACCESSED && (timeTableEntry & 1) == 1){
-                updateIntervalTable.back()++;
+            if((timeTableEntry.second & 1) == 1){
+                updateIntervalTable[CON::UPDATE_INTERVAL_TABLE_SIZE - 1]++;
                 totalReqs++;
             }
         }
@@ -390,13 +502,15 @@ namespace SSD_Components{
             PRINT_MESSAGE(i << "\t" << newUID->groupConf.at(i))
         }
         PRINT_MESSAGE("------------------------------------------------")
-        if(true){
-        //if(wafForCurUID > (wafForNewUID * (1.0 - CON::UID_SELECTION_THRESHOLD))){
+        // if(true){
+        if(wafForCurUID > (wafForNewUID * (1.0 - CON::UID_SELECTION_THRESHOLD))){
             delete currentUID;
             currentUID = newUID;
             changeUIDTag = true;
+            PRINT_MESSAGE("new UID has been selected....")
         } else{
             delete newUID;
+            PRINT_MESSAGE("new UID hasn't been selected....")
         }
         clearTable();
         hotFilter->clearFilter();

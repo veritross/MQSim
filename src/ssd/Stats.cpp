@@ -42,6 +42,9 @@ namespace SSD_Components
 	unsigned int Stats::CMT_miss_per_stream[MAX_SUPPORT_STREAMS] = { 0 }, Stats::readTR_CMT_miss_per_stream[MAX_SUPPORT_STREAMS] = { 0 }, Stats::writeTR_CMT_miss_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 	unsigned int Stats::total_CMT_queries_per_stream[MAX_SUPPORT_STREAMS] = { 0 }, Stats::total_readTR_CMT_queries_per_stream[MAX_SUPPORT_STREAMS] = { 0 }, Stats::total_writeTR_CMT_queries_per_stream[MAX_SUPPORT_STREAMS] = { 0 };
 
+	unsigned long Stats::ramWrite = 0;
+	unsigned long Stats::unramWrite = 0;
+
 	std::map<uint16_t, User_Request*> Stats::stored_request;
 
 
@@ -77,6 +80,8 @@ namespace SSD_Components
 
 		Total_gc_executions = 0;  Total_page_movements_for_gc = 0;
 		Total_wl_executions = 0;  Total_page_movements_for_wl = 0;
+
+		ramWrite = 0; unramWrite = 0;
 
 		for (stream_id_type stream_id = 0; stream_id < MAX_SUPPORT_STREAMS; stream_id++) {
 			Total_flash_reads_for_mapping_per_stream[stream_id] = 0;

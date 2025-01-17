@@ -1,6 +1,7 @@
 #ifndef LOG_UPDATE_INTERVAL_MQ_H
 #define LOG_UPDATE_INTERVAL_MQ_H
 
+#include <map>
 #include <vector>
 #include "MQ_types.h"
 
@@ -30,21 +31,34 @@ namespace SSD_Components
 		const static double NOTICIBLE_REDUCTION_CRITERIA;
 		const static double UID_SELECTION_THRESHOLD;
 
+		const static uint32_t LIMITATION_GROUP_CONF;
+
 	};
 
 	struct HotFilter{
-		std::vector<uint8_t> filter;
+		uint64_t* filter;
+		uint32_t vectorCount = 0;
 
 		HotFilter(uint64_t noOfBlocks);
 		~HotFilter();
 		void clearFilter();
+		uint8_t getFilter(const LPA_type lpa);
+		void setFilter(const LPA_type lpa, const uint8_t newBit);
+	};
+
+	class UIDS{
+	public:
+		std::map<uint64_t, uint64_t>::const_iterator lastItr;
+		double sumOfP;
+		double WAF;
 	};
 
 	class UID{
 	private:
 		//key. group count.
 		//value. group size.
-		double MarkovChain(const std::vector<double>& p, double lastBlocksAvgValidPagesRatio, double hotTrafficRatio);
+		double MarkovChain(const std::vector<std::pair<double, double>>& transitionProb, double hotTrafficRatio);
+		UIDS* split(const std::map<uint64_t, uint64_t> &intervalCountTable, std::vector<std::pair<double, double>>& transitionProb, const UIDS* lastUIDS, uint32_t totalReqs, double hotTrafficRatio, bool isHot);
 	public:
 		UID();
 
@@ -52,8 +66,8 @@ namespace SSD_Components
 		UID(const std::vector<uint32_t>& groupConf);
 
 		std::vector<uint32_t> groupConf;
-		double createUID(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock);
-		double getWAF(const std::vector<uint64_t>& intervalCountTable, uint64_t totalReqs);
+		double createUID(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock);
+		double getWAF(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs);
 	};
 
 
@@ -77,10 +91,10 @@ namespace SSD_Components
 
 		//keeps track of the number of pages for specific update intervals.
 		// Sampling rate is 0.01(one in every 100 blocks)
-		std::vector<uint64_t> updateIntervalTable;
+		std::map<uint64_t, uint64_t> updateIntervalTable;
 
 		//records timestamps of page updates to compute the update intervals of data pages.
-		std::vector<lui_timestamp> timestampTable;
+		std::map<uint64_t, lui_timestamp> timestampTable;
 
 		void scheduleCurrentTimestamp();
 		void setTables(const LPA_type lba);

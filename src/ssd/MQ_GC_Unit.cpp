@@ -153,8 +153,12 @@ namespace SSD_Components{
             victimBlock = selectVictimBlockCB(prevQueue, currentTimeStamp);
         } else{
             victimBlock = selectVictimBlockFront(prevQueue);
+            if(victimBlock->status == MQ_Block_Status::ERASING){
+                return;
+            }
             nextLevel++;
         }
+
 
         if(currentTimeStamp != 0) ftl->BlockManager->handleLUIBlockAge(victimBlock);
 
@@ -176,8 +180,7 @@ namespace SSD_Components{
 		for(auto blockItr = queue->blockList.begin(); blockItr != queue->blockList.end(); blockItr++){
 			lui_timestamp age = currentTimeStamp - (*blockItr)->createTimestamp;
 			double currentCost = (double)(pagesPerBlock - (*blockItr)->invalid_page_count) / (double)(age * (*blockItr)->invalid_page_count);
-			if((currentCost < lowestCost || (*lowestCostItr)->status != MQ_Block_Status::WORKING)
-                && (*blockItr)->Ongoing_user_read_count == 0 && (*blockItr)->Ongoing_user_program_count == 0){
+			if(currentCost < lowestCost && ((*blockItr)->Ongoing_user_read_count == 0) && ((*blockItr)->Ongoing_user_program_count == 0)){
                 if((*blockItr)->currentPageIdx == pagesPerBlock && (*blockItr)->status == MQ_Block_Status::WORKING){
                     lowestCostItr = blockItr;
                     lowestCost = currentCost;

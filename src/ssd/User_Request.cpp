@@ -10,4 +10,8 @@ namespace SSD_Components
 		ToBeIgnored = false;
 		size_of_pages = std::list<std::pair<unsigned int, unsigned int>>();
 	}
+    User_Request::~User_Request()
+    {
+		size_of_pages.clear();
+    }
 }
