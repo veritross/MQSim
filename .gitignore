@@ -2,4 +2,7 @@ MQSim
 build/
 .vscode
 traces
+workload/
+ssdconfig/
 **test**.xml
+.gitignore
