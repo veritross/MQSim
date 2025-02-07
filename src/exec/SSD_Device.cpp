@@ -443,7 +443,6 @@ page_status_type SSD_Device::Find_NVM_subunit_access_bitmap(LHA_type lha)
 
 void SSD_Device::ClearStats()
 {
-	(this->Host_interface)->ClearStats();
 	if(Memory_Type == NVM::NVM_Type::FLASH){
 		((SSD_Components::FTL *)this->Firmware)->ClearStats();
 		((SSD_Components::FTL *)this->Firmware)->TSU->ClearStats();
@@ -455,4 +454,5 @@ void SSD_Device::ClearStats()
 			}
 		}
 	}
+	(this->Host_interface)->ClearStats();
 }

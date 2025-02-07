@@ -502,7 +502,7 @@ namespace SSD_Components
 							user_request++;
 						}
 						//The traffic load on the backend is high and the waiting requests cannot be serviced
-						if (((Data_Cache_Manager_Flash_Advanced*)_my_instance)->back_pressure_buffer_depth[sharing_id] > ((Data_Cache_Manager_Flash_Advanced*)_my_instance)->back_pressure_buffer_max_depth) {
+						if (((Data_Cache_Manager_Flash_Advanced*)_my_instance)->back_pressure_buffer_depth[sharing_id] >= ((Data_Cache_Manager_Flash_Advanced*)_my_instance)->back_pressure_buffer_max_depth) {
 							break;
 						}
 					}

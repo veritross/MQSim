@@ -10,6 +10,7 @@
 #include "../utils/Helper_Functions.h"
 #include "FTL.h"
 #include "Stats.h"
+#include "Flash_Block_Manager_MQ.h"
 
 namespace SSD_Components
 {
@@ -914,6 +915,7 @@ namespace SSD_Components
 
     void FTL::ClearStats()
     {
+		BlockManager->startGroupConfiguration();
 		Stats::Clear_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
 		Stats::Init_stats(channel_no, chip_no_per_channel, die_no_per_chip, plane_no_per_die, block_no_per_plane, page_no_per_block, max_allowed_block_erase_count);
     }

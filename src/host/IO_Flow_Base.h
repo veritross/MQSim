@@ -123,8 +123,6 @@ namespace Host_Components
 		sim_time_type STAT_sum_device_response_time_short_term, STAT_sum_request_delay_short_term;
 		unsigned int STAT_serviced_request_count_short_term;
 		std::ofstream log_file2;
-
-		int i = 0;
 	};
 }
 

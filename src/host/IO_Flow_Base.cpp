@@ -112,7 +112,6 @@ IO_Flow_Base::IO_Flow_Base(const sim_object_id_type &name, uint16_t flow_id, LHA
 	
 	IO_Flow_Base::~IO_Flow_Base()
 	{
-		PRINT_MESSAGE(i)
 		log_file.close();
 		for(auto &req : waiting_requests) {
 			if (req) {
@@ -633,8 +632,6 @@ IO_Flow_Base::IO_Flow_Base(const sim_object_id_type &name, uint16_t flow_id, LHA
 	}
     void IO_Flow_Base::ClearStats()
     {
-		total_requests_to_be_generated -= STAT_generated_request_count;
-		STAT_generated_request_count = 0;
 		STAT_generated_read_request_count = 0;
 		STAT_generated_write_request_count = 0;
 		STAT_transferred_bytes_total = 0;

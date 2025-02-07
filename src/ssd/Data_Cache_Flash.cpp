@@ -5,8 +5,7 @@
 namespace SSD_Components
 {
 	Data_Cache_Flash::Data_Cache_Flash(unsigned int capacity_in_pages, bool LFU, unsigned int RC_bound, unsigned int RC_capacity, unsigned int LFU_reset_interval)
-	 : capacity_in_pages(capacity_in_pages), LFU(LFU), RC_bound(RC_bound), RC_capacity(RC_capacity), LFU_reset_interval(LFU_reset_interval) {
-		next_LFU_reset_milestone = LFU_reset_interval;
+	 : capacity_in_pages(capacity_in_pages){
 	}
 	bool Data_Cache_Flash::Exists(const stream_id_type stream_id, const LPA_type lpn)
 	{
@@ -33,13 +32,8 @@ namespace SSD_Components
 		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
 		auto it = slots.find(key);
 		assert(it != slots.end());
-		if(LFU){
-			LFU_Increase_access_count(it->second, key);
-		}
-		else{
-			if (lru_list.begin()->first != key) {
-				lru_list.splice(lru_list.begin(), lru_list, it->second->lru_list_ptr);
-			}
+		if (lru_list.begin()->first != key) {
+			lru_list.splice(lru_list.begin(), lru_list, it->second->lru_list_ptr);
 		}
 		return *(it->second);
 	}
@@ -68,11 +62,6 @@ namespace SSD_Components
 	Data_Cache_Slot_Type Data_Cache_Flash::Evict_one_dirty_slot()
 	{
 		assert(slots.size() > 0);
-		if(LFU){
-			
-		}
-		else{
-		}
 		auto itr = lru_list.rbegin();
 		while (itr != lru_list.rend()) {
 			if ((*itr).second->Status == Cache_Slot_Status::DIRTY_NO_FLASH_WRITEBACK) {
@@ -96,27 +85,12 @@ namespace SSD_Components
 	Data_Cache_Slot_Type Data_Cache_Flash::Evict_one_slot_lru()
 	{
 		assert(slots.size() > 0);
-		if(LFU){
-			std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>::iterator evicted_item_ptr = (*lfu_list.begin())->begin();
-			Data_Cache_Slot_Type evicted_item = *evicted_item_ptr->second;
-			LPA_type key = evicted_item_ptr->first;
-			slots.erase(key);
-			LFU_Remove_Data((*evicted_item_ptr).second, key);
-			delete (*evicted_item_ptr).second;
-			if (LFU_reset_interval != 0 && Simulator->Time() / 1000000 > next_LFU_reset_milestone) {
-				LFU_Reset_All();
-				next_LFU_reset_milestone = Simulator->Time() / 1000000 + LFU_reset_interval;
-			}
-			return evicted_item;
-		}
-		else{
-			LPA_type key = lru_list.back().first;
-			slots.erase(lru_list.back().first);
-			Data_Cache_Slot_Type evicted_item = *lru_list.back().second;
-			delete lru_list.back().second;
-			lru_list.pop_back();
-			return evicted_item;
-		}
+		LPA_type key = lru_list.back().first;
+		slots.erase(lru_list.back().first);
+		Data_Cache_Slot_Type evicted_item = *lru_list.back().second;
+		delete lru_list.back().second;
+		lru_list.pop_back();
+		return evicted_item;
 	}
 
 	void Data_Cache_Flash::Change_slot_status_to_writeback(const stream_id_type stream_id, const LPA_type lpn)
@@ -131,7 +105,9 @@ namespace SSD_Components
 		const data_timestamp_type timestamp, const page_status_type state_bitmap_of_read_sectors)
 	{
 		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
-		
+		if(lpn == NO_LPA){
+			PRINT_MESSAGE("AAAA")
+		}
 		if (slots.find(key) != slots.end()) {
 			throw std::logic_error("Duplicate lpn insertion into data cache!");
 		}
@@ -146,21 +122,17 @@ namespace SSD_Components
 		cache_slot->Timestamp = timestamp;
 		cache_slot->Status = Cache_Slot_Status::CLEAN;
 		cache_slot->accessCount = 0;
-		if(LFU){
-			LFU_Insert_Data(cache_slot, key);
-		}
-		else{
-			lru_list.push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, cache_slot));
-			cache_slot->lru_list_ptr = lru_list.begin();
-		}
+		lru_list.push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, cache_slot));
+		cache_slot->lru_list_ptr = lru_list.begin();
 		slots[key] = cache_slot;
-		RC_Remove_Data(stream_id, lpn);
-
 	}
 
 	void Data_Cache_Flash::Insert_write_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content,
 		const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors)
 	{
+		if(lpn == NO_LPA){
+			PRINT_MESSAGE("AAAAB")
+		}
 		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
 		if (slots.find(key) != slots.end()) {
 			throw std::logic_error("Duplicate lpn insertion into data cache!!");
@@ -177,15 +149,9 @@ namespace SSD_Components
 		cache_slot->Timestamp = timestamp;
 		cache_slot->Status = Cache_Slot_Status::DIRTY_NO_FLASH_WRITEBACK;
 		cache_slot->accessCount = 0;
-		if(LFU){
-			LFU_Insert_Data(cache_slot, key);
-		}
-		else{
-			lru_list.push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, cache_slot));
-			cache_slot->lru_list_ptr = lru_list.begin();
-		}
+		lru_list.push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, cache_slot));
+		cache_slot->lru_list_ptr = lru_list.begin();
 		slots[key] = cache_slot;
-		RC_Remove_Data(stream_id, lpn);
 	}
 
 	void Data_Cache_Flash::Update_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content,
@@ -199,13 +165,8 @@ namespace SSD_Components
 		it->second->Content = content;
 		it->second->Timestamp = timestamp;
 		it->second->Status = Cache_Slot_Status::DIRTY_NO_FLASH_WRITEBACK;
-		if(LFU){
-			LFU_Increase_access_count(it->second, key);
-		}
-		else{
-			if (lru_list.begin()->first != key) {
-				lru_list.splice(lru_list.begin(), lru_list, it->second->lru_list_ptr);
-			}
+		if (lru_list.begin()->first != key) {
+			lru_list.splice(lru_list.begin(), lru_list, it->second->lru_list_ptr);
 		}
 	}
 
@@ -214,122 +175,8 @@ namespace SSD_Components
 		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
 		auto it = slots.find(key);
 		assert(it != slots.end());
-		if(LFU){
-			LFU_Remove_Data(it->second, key);
-		}else{
-			lru_list.erase(it->second->lru_list_ptr);
-		}
+		lru_list.erase(it->second->lru_list_ptr);
 		delete it->second;
 		slots.erase(key);
 	}
-
-    void Data_Cache_Flash::LFU_Increase_access_count(Data_Cache_Slot_Type* slot, LPA_type key)
-    {
-		auto listIt = slot->lfu_list_ptr;
-		auto listItNext = listIt;
-		listItNext++;
-		slot->accessCount++;
-		LFU_Remove_Data(slot, key);
-		if(listItNext != lfu_list.end() && (*listItNext)->front().second->accessCount == slot->accessCount){
-			(*listItNext)->push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, slot));
-			(slot)->lfu_list_ptr = listItNext;
-		} else{
-			auto new_list = new std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>();
-			new_list->push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, slot));
-			(slot)->lfu_list_ptr = lfu_list.insert(listItNext, new_list);
-		}
-    }
-
-    void Data_Cache_Flash::LFU_Insert_Data(Data_Cache_Slot_Type *slot, LPA_type key)
-    {
-		if(lfu_list.size() != 0 && lfu_list.front()->front().second->accessCount == slot->accessCount){
-			lfu_list.front()->push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, slot));
-		}
-		else{
-			auto new_list = new std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>();
-			new_list->push_front(std::pair<LPA_type, Data_Cache_Slot_Type*>(key, slot));
-			lfu_list.push_front(new_list);
-		}
-		slot->lfu_list_ptr = lfu_list.begin();
-    }
-
-    void Data_Cache_Flash::LFU_Remove_Data(Data_Cache_Slot_Type *slot, LPA_type key)
-    {
-		auto LFU_list_of_slot = (*slot->lfu_list_ptr);
-
-		auto dest_slot = LFU_list_of_slot->begin();
-		while(dest_slot != LFU_list_of_slot->end()){
-			if(dest_slot->first == key) break;
-			dest_slot++;
-		}
-		assert(dest_slot != LFU_list_of_slot->end());
-		LFU_list_of_slot->erase(dest_slot);
-		if(LFU_list_of_slot->size() == 0){
-			lfu_list.erase(slot->lfu_list_ptr);
-		}
-    }
-
-    void Data_Cache_Flash::LFU_Reset_All()
-    {
-		auto front_list = lfu_list.begin();
-		auto list_to_remove = lfu_list.begin();
-		list_to_remove++;
-		while(list_to_remove != lfu_list.end()){
-			(*front_list)->splice((*front_list)->begin(), (**list_to_remove));
-			delete (*list_to_remove);
-			list_to_remove = lfu_list.erase(list_to_remove);
-		}
-
-		for(auto e : (**front_list)){
-			e.second->lfu_list_ptr = front_list;
-			e.second->accessCount = 0;
-		}
-    }
-
-    void Data_Cache_Flash::RC_Increase_access_count(const stream_id_type stream_id, const LPA_type lpn)
-    {
-		if(RC_bound == 0) return;
-		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
-		auto it = std::find_if(read_count.begin(), read_count.end(),
-			[&](const std::pair<LPA_type, int> v){
-				return v.first == key;
-			});
-		if(it == read_count.end()){
-			if(read_count.size() >= (RC_capacity / sizeof(LPA_type))){
-				read_count.pop_back();
-			}
-			read_count.push_front(std::pair<LPA_type, int>(key, 1));
-		}else{
-			it->second++;
-		}
-    }
-
-	//This function is executed when data that has parameter insert to cache.
-    void Data_Cache_Flash::RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn)
-    {
-		if(RC_bound == 0) return;
-		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
-		auto it = std::find_if(read_count.begin(), read_count.end(),
-			[&](const std::pair<LPA_type, int> v){
-				return v.first == key;
-			});
-		if(it != read_count.end()){
-			read_count.erase(it);
-		}
-    }
-
-	//return this data should caching or not.
-    bool Data_Cache_Flash::RC_Compare_Data(const stream_id_type stream_id, const LPA_type lpn)
-    {
-		if(RC_bound == 0) return true;
-		LPA_type key = LPN_TO_UNIQUE_KEY(stream_id, lpn);
-		auto it = std::find_if(read_count.begin(), read_count.end(),
-			[&](const std::pair<LPA_type, int> v){
-				return v.first == key;
-			});
-		assert(it != read_count.end());
-		return (*it).second >= RC_bound;
-    }
-
-
 }

@@ -54,9 +54,7 @@ namespace SSD_Components
 		{
 			connected_transaction_serviced_signal_handler = function;
 		}
-
-		Block_Type* selectVictimBlockCB(Block_Queue* queue);
-
+		void moveWaitingWrites(const level_type popLevel, const level_type pushLevel);
 	private:
 		void Set_barrier_for_accessing_lpa(const stream_id_type stream_id, const LPA_type lpa); //It sets a barrier for accessing an LPA, when the GC unit (i.e., GC_and_WL_Unit_Base) starts moving an LPA from one physical page to another physical page. This type of barrier is pretty much like a memory barrier in CPU, i.e., all accesses to the lpa that issued before setting the barrier still can be executed, but no new access is allowed.
 		void Set_barrier_for_accessing_mvpn(const stream_id_type stream_id, const MVPN_type mvpn); //It sets a barrier for accessing an MVPN, when the GC unit(i.e., GC_and_WL_Unit_Base) starts moving an mvpn from one physical page to another physical page. This type of barrier is pretty much like a memory barrier in CPU, i.e., all accesses to the lpa that issued before setting the barrier can be executed, but no new access is allowed.

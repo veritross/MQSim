@@ -81,6 +81,8 @@ void IO_Flow_Trace_Based::Start_simulation()
 	std::string trace_line;
 	char *pEnd;
 
+	uint32_t total_requests_in_load_file = 0;
+
 	load_trace_file.open(load_trace_file_path, std::ios::in);
 	if(!load_trace_file.is_open()){
 		loadPhaseExists = false;
@@ -100,7 +102,7 @@ void IO_Flow_Trace_Based::Start_simulation()
 			{
 				break;
 			}
-			total_requests_in_file++;
+			total_requests_in_load_file++;
 			sim_time_type prev_time = last_request_arrival_time_1;
 			last_request_arrival_time_1 = std::strtoll(current_trace_line[ASCIITraceTimeColumn].c_str(), &pEnd, 10);
 			if (last_request_arrival_time_1 < prev_time)
@@ -144,11 +146,11 @@ void IO_Flow_Trace_Based::Start_simulation()
 
 	if (total_replay_no == 1)
 	{
-		total_requests_to_be_generated = (int)(((double)percentage_to_be_simulated / 100) * total_requests_in_file);
+		total_requests_to_be_generated = (int)(((double)percentage_to_be_simulated / 100) * total_requests_in_file) + total_requests_in_load_file;
 	}
 	else
 	{
-		total_requests_to_be_generated = total_requests_in_file * total_replay_no;
+		total_requests_to_be_generated = total_requests_in_file * total_replay_no + total_requests_in_load_file;
 	}
 
 	std::ifstream* curTraceFile;
@@ -197,6 +199,7 @@ void IO_Flow_Trace_Based::Execute_simulator_event(MQSimEngine::Sim_Event *)
 		}
 		else
 		{
+			char *pEnd;
 			if(loadPhase){
 				loadPhase = false;
 				curTraceFile->close();
@@ -206,7 +209,6 @@ void IO_Flow_Trace_Based::Execute_simulator_event(MQSimEngine::Sim_Event *)
 				Utils::Helper_Functions::Remove_cr(trace_line);
 				current_trace_line.clear();
 				Utils::Helper_Functions::Tokenize(trace_line, ASCIILineDelimiter, current_trace_line);
-				char *pEnd;
 				Simulator->FinishLoadPhase(std::strtoll(current_trace_line[ASCIITraceTimeColumn].c_str(), &pEnd, 10), this);
 				return;
 			} else{
@@ -219,7 +221,7 @@ void IO_Flow_Trace_Based::Execute_simulator_event(MQSimEngine::Sim_Event *)
 				Utils::Helper_Functions::Remove_cr(trace_line);
 				current_trace_line.clear();
 				Utils::Helper_Functions::Tokenize(trace_line, ASCIILineDelimiter, current_trace_line);
-				PRINT_MESSAGE("* Replay round " << replay_counter << "of " << total_replay_no << " started  for" << ID())
+				PRINT_MESSAGE("* Replay round " << replay_counter << " of " << total_replay_no << " started  for " << ID())
 			}
 		}
 		char *pEnd;

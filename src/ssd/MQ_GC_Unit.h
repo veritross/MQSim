@@ -22,6 +22,7 @@ namespace SSD_Components
         static void handle_transaction_serviced_signal_from_PHY(NVM_Transaction_Flash* transaction);
         Block_Type* selectVictimBlockFront(Block_Queue* queue);
         Block_Type* selectVictimBlockCB(Block_Queue *queue, lui_timestamp currentTimeStamp);
+        bool isValidForVictimBlock(const Block_Type* block);
     public:
         MQ_GC_Unit(const sim_object_id_type &id, FTL* ftl, uint32_t pagesPerBlock, uint32_t sectorsPerPage);
         ~MQ_GC_Unit();
@@ -30,7 +31,7 @@ namespace SSD_Components
 		void Start_simulation();
 		void Validate_simulation_config();
 		void Execute_simulator_event(MQSimEngine::Sim_Event*);
-        void gc_start(Block_Queue* prevQueue, lui_timestamp currentTimeStamp);
+        bool gc_start(Block_Queue* prevQueue, lui_timestamp currentTimeStamp);
 	    bool GC_is_in_urgent_mode(NVM::FlashMemory::Flash_Chip* const chip);
 
         void submitTransactions(Block_Type* victimBlock);

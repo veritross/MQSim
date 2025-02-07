@@ -9,9 +9,9 @@ namespace SSD_Components{
     const lui_timestamp CON::TIMESTAMP_NOT_ACCESSED = UINT64_MAX;
     const uint8_t CON::HOT_FILTER_BITS_COUNT = 2;
 
-    const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 88000;
+    const lui_timestamp CON::UPDATE_INTERVAL_TABLE_SIZE = 176000;
     // const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 1e4;
-    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 88000;
+    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 176000;
     // const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 1e4;
 
     const double CON::NOTICIBLE_REDUCTION_CRITERIA = 0.005;
@@ -96,11 +96,10 @@ namespace SSD_Components{
                 delete prevUIDS;
                 std::swap(newUIDS, prevUIDS);
                 optGroupConf = this->groupConf;
-
-                if(notNoticibleReductionCount == CON::NOT_NOTICIBLE_REDUCTION_THRESHOLD){
-                    break;
-                }
             } else{
+                notNoticibleReductionCount++;
+            }
+            if(notNoticibleReductionCount == CON::NOT_NOTICIBLE_REDUCTION_THRESHOLD){
                 break;
             }
         }
@@ -128,19 +127,6 @@ namespace SSD_Components{
                     (*lastGroupConf)--;
                     break;
                 }
-            }
-        }
-
-        int pushCount = (totalBlocksCount / 16) - (*lastGroupConf);
-        uint32_t groupIdx = groupConf.size() - 2;
-        while(pushCount > 0){
-            curGroupConf = &groupConf.at(groupIdx);
-            if((*curGroupConf) > MIN_QUEUE_SIZE){
-                (*curGroupConf)--;
-                (*lastGroupConf)++;
-                pushCount--;
-            } else{
-                groupIdx--;
             }
         }
 
@@ -231,20 +217,22 @@ namespace SSD_Components{
 
         }
 
-        double userWrite = freeNodeCurEpoch;
+        double userWrite = 0.0;
         double gcWrite = 0.0;
         // Hot and G1.
         if(groupConf.size() == 2){
+            userWrite = freeNodeCurEpoch;
             gcWrite = nodesCurEpoch.at(1) - (freeNodeCurEpoch * hotTrafficRatio);
         }
         // Else.
         else{
+            userWrite = nodesCurEpoch.at(0) + nodesCurEpoch.at(1);
             for(uint32_t nodeIdx = 2; nodeIdx < nodesCurEpoch.size(); nodeIdx++){
                 gcWrite += nodesCurEpoch.at(nodeIdx);
             }
             gcWrite += nodesCurEpoch.at(0) * transitionProb.at(0).first;
         }
-        return ((userWrite + gcWrite) / userWrite);
+        return round(((userWrite + gcWrite) / userWrite) * 1e5) / 1e5;
     }
 
     //beforeItr은 이전 groupConfig의 마지막.
@@ -264,7 +252,6 @@ namespace SSD_Components{
         uint32_t prevWaitingPeriod = 0;
         uint32_t nextWaitingPeriod = 0;
 
-
         // P initialize.
         double prevP = 0.0;
         double nextP = 0.0;
@@ -279,16 +266,14 @@ namespace SSD_Components{
                 prevP += (double)prevItr->second / (double)totalReqs;
             }
         }
-        {
-            nextItr = prevItr;
-            nextWaitingPeriod = ((double)nextGroupConf * (1.0 / (1.0 - (lastUIDS->sumOfP + prevP))) + prevWaitingPeriod) + 1;
-            for(; nextItr->first < nextWaitingPeriod && nextItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; nextItr++){
-                nextP += (double)nextItr->second / (double)totalReqs;
-            }
-            auto tmp = nextItr;
-            for(; tmp != intervalCountTable.end(); tmp++){
-                lastP += (double)tmp->second / (double)totalReqs;
-            }
+        nextItr = prevItr;
+        nextWaitingPeriod = ((double)nextGroupConf * (1.0 / (1.0 - (lastUIDS->sumOfP + prevP))) + prevWaitingPeriod) + 1;
+        for(; nextItr->first < nextWaitingPeriod && nextItr->first < CON::UPDATE_INTERVAL_TABLE_SIZE - 1; nextItr++){
+            nextP += (double)nextItr->second / (double)totalReqs;
+        }
+        auto tmp = nextItr;
+        for(; tmp != intervalCountTable.end(); tmp++){
+            lastP += (double)tmp->second / (double)totalReqs;
         }
 
         double newWAF = 0.0;
@@ -415,7 +400,7 @@ namespace SSD_Components{
         setTables(lba);
 
         if((currentTimestamp % CON::GROUP_CONFIGURE_EPOCH) == 0 && (requestCountInCurrentInterval == 0)){
-            selectUID();
+            //selectUID();
         }
     }
 
@@ -520,6 +505,7 @@ namespace SSD_Components{
     // Else, return the null pointer.
     UID *Log_Update_Interval::getUID()
     {
+        selectUID();
         if(changeUIDTag){
             changeUIDTag = false;
             return currentUID;

@@ -2,6 +2,7 @@
 #include <queue>
 #include "MQ_GC_Unit.h"
 #include "FTL.h"
+#include "Address_Mapping_Unit_MQ.h"
 
 
 namespace SSD_Components{
@@ -73,6 +74,9 @@ namespace SSD_Components{
 
     Block_Type *Block_Queue::getCurrentBlock()
     {
+        if(currentBlockIdx >= blockList.size()){
+            PRINT_ERROR("Get Current Block")
+        }
         return blockList.at(currentBlockIdx);
     }
     
@@ -89,12 +93,13 @@ namespace SSD_Components{
 
     bool Block_Queue::isFull()
     {
-        return (blockList.size() == 0 || (currentBlockIdx > (blockList.size() - 2)));
+        return (blockList.size() == 0 || (currentBlockIdx >= blockList.size() - 1));
     }
 
     void Block_Queue::adjustBlockIdx(uint64_t pagesPerBlock)
     {
         currentBlockIdx = blockList.size();
+        if(currentBlockIdx == 0) return;
         do{
             currentBlockIdx--;
             if(blockList.at(currentBlockIdx)->status != MQ_Block_Status::IDLE) break;
@@ -140,24 +145,24 @@ namespace SSD_Components{
 
     bool Flash_Block_Manager_MQ::overGCThreshold(level_type level)
     {
-        if(isLastQueue(level)){
-            if(queues.at(level)->blockList.size() > 100){
-                if(queues.at(level)->currentErasingBlocksCount > (double)queues.at(level)->blockList.size() * 0.01){
-                    return false;
-                } else{
-                    return ((double)queues.at(level)->blockList.size()) * 0.99 < queues.at(level)->currentBlockIdx;
-                }
-            } else{
-                return Stop_servicing_writes(level);
-            }
-        } else {
-            return Stop_servicing_writes(level);
+        Block_Queue* queue = queues.at(level);
+        int totalBlockCount = queue->blockList.size();
+        int freeBlockCount = totalBlockCount - (queue->currentBlockIdx + 1) + queue->currentErasingBlocksCount;
+        if(totalBlockCount < 100){
+            return (freeBlockCount < 2);
+        } else{
+            return (freeBlockCount < (totalBlockCount / 100) + 2);
         }
     }
 
     bool Flash_Block_Manager_MQ::isLastQueue(level_type level)
     {
         return level == (queueCount - 1);
+    }
+
+    bool Flash_Block_Manager_MQ::isErasing(level_type level)
+    {
+        return (queues.at(level)->currentBlockIdx > 0);
     }
 
     void Flash_Block_Manager_MQ::startGroupConfiguration()
@@ -213,23 +218,44 @@ namespace SSD_Components{
         // }
 
         for(auto queue : queues){
-            for(auto block : queue->blockList){
-                if(block->status == MQ_Block_Status::IDLE) freeBlockPool.push(block);
-                else blockPool.push(block);
+            auto blockItr = queue->blockList.begin();
+            while(blockItr != queue->blockList.end()){
+                if((*blockItr)->status == MQ_Block_Status::IDLE){
+                    freeBlockPool.push((*blockItr));
+                } else if(((*blockItr)->status == MQ_Block_Status::WORKING) && (*blockItr)->currentPageIdx == pagesPerBlock){
+                    blockPool.push((*blockItr));
+                } else{
+                    blockItr++;
+                    continue;
+                }
+                blockItr = queue->blockList.erase(blockItr);
             }
-            queue->blockList.clear();
         }
 
+        for(uint32_t popTargetQueueIdx = 0; popTargetQueueIdx < queues.size(); popTargetQueueIdx++){
+            Block_Queue* popTargetQueue = queues.at(popTargetQueueIdx);
+            int popCount = 0;
+            if(uid->groupConf.size() < popTargetQueueIdx){
+                popCount = popTargetQueue->blockList.size() - uid->groupConf.at(popTargetQueueIdx);
+            } else{
+                popCount = popTargetQueue->blockList.size();
+            }
+            while(popCount > 0){
+                Block_Type* popBlock = popTargetQueue->blockList.back();
+                popTargetQueue->blockList.pop_back();
+                if(popBlock->status == MQ_Block_Status::IDLE){
+                    freeBlockPool.push(popBlock);
+                } else{
+                    blockPool.push(popBlock);
+                }
+                popCount--;
+            }
+        }
 
         // Push the blocks to queues.
         for(uint32_t pushTargetQueueIdx = 0; pushTargetQueueIdx < uid->groupConf.size(); pushTargetQueueIdx++){
             Block_Queue* pushTargetQueue = queues.at(pushTargetQueueIdx);
-            int pushCount = 0;
-            if(uid->groupConf.size() < pushTargetQueueIdx + 1){
-                break;
-            } else{
-                pushCount = uid->groupConf.at(pushTargetQueueIdx) - pushTargetQueue->blockList.size();
-            }
+            int pushCount = uid->groupConf.at(pushTargetQueueIdx) - pushTargetQueue->blockList.size();
             while(pushCount > 0){
                 Block_Type* pushBlock;
                 if(!blockPool.empty()){
@@ -275,6 +301,8 @@ namespace SSD_Components{
             curQueue->adjustBlockIdx(pagesPerBlock);
             if(overGCThreshold(groupNumber)){
                 ftl->GC_and_WL_Unit->gc_start(curQueue, 0);
+            } else{
+                ftl->Address_Mapping_Unit->Start_servicing_writes_for_level(groupNumber);
             }
         }
     }
@@ -287,11 +315,6 @@ namespace SSD_Components{
         lui->updateHotFilter(lpa, blkAge, block->prevQueue, forGC);
     }
 
-    bool Flash_Block_Manager_MQ::isHot(const LPA_type &lpa)
-    {
-        return lui->isHot(lpa);
-    }
-
     void Flash_Block_Manager_MQ::handleLUIBlockAge(Block_Type *block)
     {
         // if(isLastQueue(block->prevQueue)){
@@ -301,6 +324,33 @@ namespace SSD_Components{
         //         lui->addBlockAge(block, Queue_Type::HOT_QUEUE);
         //     }
         // }
+    }
+
+    bool Flash_Block_Manager_MQ::isFilled(const level_type level)
+    {
+        for(uint32_t curLevel = level; curLevel < queueCount; curLevel++){
+            if(!Stop_servicing_writes(curLevel)){
+                return false;
+            }
+        }
+        if(level == 0){
+            PRINT_ERROR("is filled")
+        }
+        return true;
+    }
+
+    void Flash_Block_Manager_MQ::handleTrLevel(NVM_Transaction_Flash* tr)
+    {
+        if(tr->level == UNDEFINED_LEVEL){
+            if(lui->isHot(tr->LPA)){
+                tr->level = 0;
+            } else{
+                tr->level = 1;
+            }
+        }
+        if(queueCount + 1 < tr->level){
+            tr->level = queueCount - 1;
+        }
     }
 
     Flash_Block_Manager_MQ::Flash_Block_Manager_MQ(FTL *ftl, uint32_t channelCount, uint32_t chipsPerChannel, uint32_t diesPerChip, uint32_t planesPerDie, uint32_t blocksPerPlane, uint32_t pagesPerBlock)
@@ -332,6 +382,16 @@ namespace SSD_Components{
         }
 
         uint32_t blockIdx = 0;
+        // uint32_t lastBlockCount = 10;
+        // uint32_t unLastBlocksCount = blocks.size() - lastBlockCount;
+        // for(int qIdx = 0; qIdx < queueCount - 1; qIdx++){
+        //     for(int i = 0; i < unLastBlocksCount / (queueCount - 1); i++, blockIdx++){
+        //         queues.at(qIdx)->enqueueBlock(blocks.at(blockIdx));
+        //     }
+        // }
+        // while(blockIdx < blocks.size()){
+        //     queues.back()->enqueueBlock(blocks.at(blockIdx++));
+        // }
 
         for(auto& queue : queues){
             for(uint32_t i = 0; i < blocks.size() / queueCount; i++, blockIdx++){
@@ -362,11 +422,6 @@ namespace SSD_Components{
 
     void Flash_Block_Manager_MQ::Allocate_page(const stream_id_type streamID, NVM::FlashMemory::Physical_Page_Address &address, LPA_type lpa, uint32_t& level, bool forGC, bool forRead)
     {
-        if(queueCount + 1 < level){
-            level = queueCount - 1;
-        }
-
-
         Block_Queue* queue = queues.at(level);
 
         Block_Type* block = queue->getCurrentBlock();
@@ -375,15 +430,10 @@ namespace SSD_Components{
         }
         address = *block->blockAddr;
         address.PageID = block->currentPageIdx++;
-        
         if(!forRead){
-            startGroupConfiguration();
-            if(!forGC){
-                lui->updateTable(lpa);
-                Program_transaction_issued(block);
-            }
+            Program_transaction_issued(block);
         }
-
+        
         if(block->currentPageIdx == pagesPerBlock){
             queue->currentBlockIdx++;
             while(!queue->isFull()){
@@ -395,6 +445,13 @@ namespace SSD_Components{
                 ftl->GC_and_WL_Unit->gc_start(queue, lui->getCurrentTimestamp());
             } else{
                 block->StartUsing(lui->getCurrentTimestamp(), streamID, false);
+            }
+        }
+
+        if(!forRead){
+            //startGroupConfiguration();
+            if(!forGC){
+                lui->updateTable(lpa);
             }
         }
     }
@@ -443,17 +500,17 @@ namespace SSD_Components{
     void Flash_Block_Manager_MQ::Program_transaction_serviced(const PPA_type &ppa)
     {
         Block_Type* block = getBlock(ppa);
-        if(block->Ongoing_user_program_count < 1){
+        if(block->Ongoing_user_program_count > 0){
+            block->Ongoing_user_program_count--;
+        } else{
             PRINT_ERROR("Program transaction serviced")
         }
-        block->Ongoing_user_program_count--;
     }
 
     void Flash_Block_Manager_MQ::Invalidate_page_in_block(const stream_id_type streamID, const PPA_type &ppa)
     {
         uint32_t pageID = ppa % pagesPerBlock;
         Block_Type* block = getBlock(ppa);
-        
         block->invalid_page_bitmap[pageID / 64] |= ((uint64_t)1 << ((uint64_t)pageID % (uint64_t)64));
         block->invalid_page_count++;
     }

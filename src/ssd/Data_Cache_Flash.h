@@ -58,24 +58,12 @@ namespace SSD_Components
 		void Insert_read_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_read_sectors);
 		void Insert_write_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors);
 		void Update_data(const stream_id_type stream_id, const LPA_type lpn, const data_cache_content_type content, const data_timestamp_type timestamp, const page_status_type state_bitmap_of_write_sectors);
-		void LFU_Increase_access_count(Data_Cache_Slot_Type* slot, LPA_type key);
-		void LFU_Insert_Data(Data_Cache_Slot_Type* slot, LPA_type key);
-		void LFU_Remove_Data(Data_Cache_Slot_Type* slot, LPA_type key);
-		void LFU_Reset_All();
-		void RC_Increase_access_count(const stream_id_type stream_id, const LPA_type lpn);
-		void RC_Remove_Data(const stream_id_type stream_id, const LPA_type lpn);
-		bool RC_Compare_Data(const stream_id_type stream_id, const LPA_type lpn);
 	private:
 		std::unordered_map<LPA_type, Data_Cache_Slot_Type*> slots;
 		std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>> lru_list;
 		std::list<std::list<std::pair<LPA_type, Data_Cache_Slot_Type*>>*> lfu_list;
 		std::list<std::pair<LPA_type, int>> read_count;
-		const unsigned int RC_capacity;
-		const unsigned int RC_bound;
 		unsigned int capacity_in_pages;
-		bool LFU;
-		const unsigned int LFU_reset_interval;
-		unsigned int next_LFU_reset_milestone;
 	};
 }
 

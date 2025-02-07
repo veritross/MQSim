@@ -95,14 +95,18 @@ namespace SSD_Components
         bool overGCThreshold(level_type level);
 
         bool isLastQueue(level_type level);
+        bool isErasing(level_type level);
 
         void startGroupConfiguration();
 
         // Only executed when the pages are invalidated.
         void handleHotFilter(const LPA_type& lpa, const PPA_type& old_ppa, const bool forGC);
-        bool isHot(const LPA_type& lpa);
 
         void handleLUIBlockAge(Block_Type* block);
+
+        bool isFilled(const level_type level);
+
+        void handleTrLevel(NVM_Transaction_Flash* tr);
     private:
         uint32_t queueCount;
         Log_Update_Interval* lui;

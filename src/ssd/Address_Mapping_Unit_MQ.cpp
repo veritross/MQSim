@@ -99,11 +99,11 @@ namespace SSD_Components{
         for (unsigned int i = 0; i < no_of_input_streams; i++) {
         if (domains[i]) {
             delete domains[i];
-            domains[i] = nullptr;  // Dangling pointer 방지
+            domains[i] = nullptr;
         }
     }
     delete[] domains;
-    domains = nullptr;  // Dangling pointer 방지
+    domains = nullptr;
     }
 
     void Address_Mapping_Unit_MQ::Setup_triggers()
@@ -203,6 +203,14 @@ namespace SSD_Components{
 			}
 		}
     }
+
+    void Address_Mapping_Unit_MQ::moveWaitingWrites(const level_type popLevel, const level_type pushLevel)
+    {
+		std::set<NVM_Transaction_Flash*>& popList = write_transactions_for_level.at(popLevel);
+		std::set<NVM_Transaction_Flash*>& pushList = write_transactions_for_level.at(pushLevel);
+		pushList.insert(popList.begin(), popList.end());
+		Start_servicing_writes_for_level(pushLevel);
+	}
 
     void Address_Mapping_Unit_MQ::Set_barrier_for_accessing_lpa(const stream_id_type stream_id, const LPA_type lpa)
     {
@@ -318,14 +326,14 @@ namespace SSD_Components{
 			if(waiting_write_list.size() > 0){
 				auto trItr = waiting_write_list.begin();
 				ftl->TSU->Prepare_for_transaction_submit();
-				std::set<LPA_type> tmp;
 				while(trItr != waiting_write_list.end()){
 					if(translate_lpa_to_ppa((*trItr)->Stream_id, *trItr)) {
 						ftl->TSU->Submit_transaction(*trItr);
 						if((*trItr)->Type == Transaction_Type::WRITE && ((NVM_Transaction_Flash_WR*)(*trItr))->RelatedRead != NULL){
 							ftl->TSU->Submit_transaction(((NVM_Transaction_Flash_WR*)(*trItr))->RelatedRead);
 						}
-						waiting_write_list.erase(trItr++);
+						auto cur = trItr++;
+						waiting_write_list.erase(cur);
 					} else{
 						break;
 					}
@@ -472,21 +480,15 @@ namespace SSD_Components{
 			// FIN Read.
 			return true;
 		} else {
-			if(transaction->level == UNDEFINED_LEVEL){
-			 	if(block_manager->isHot(transaction->LPA)){
-					((NVM_Transaction_Flash_WR*)transaction)->level = 0;
-				} else{
-					((NVM_Transaction_Flash_WR*)transaction)->level = 1;
-				}
-			}
-
-			if(block_manager->Stop_servicing_writes(((NVM_Transaction_Flash_WR*)transaction)->level)){
+			block_manager->handleTrLevel(transaction);
+			if(block_manager->Stop_servicing_writes(transaction->level)){
 				return false;
+			} else{
+				allocate_page_for_write((NVM_Transaction_Flash_WR*)transaction);
+				transaction->Physical_address_determined = true;
+				
+				return true;
 			}
-			allocate_page_for_write((NVM_Transaction_Flash_WR*)transaction);
-			transaction->Physical_address_determined = true;
-			
-			return true;
 		}
     }
     
@@ -534,7 +536,6 @@ namespace SSD_Components{
 				}
 				block_manager->handleHotFilter(tr->LPA, old_ppa, forGC);
 			}
-
 		}
 
 		block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, forGC, false);
