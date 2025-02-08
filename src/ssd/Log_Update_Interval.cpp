@@ -400,7 +400,7 @@ namespace SSD_Components{
         setTables(lba);
 
         if((currentTimestamp % CON::GROUP_CONFIGURE_EPOCH) == 0 && (requestCountInCurrentInterval == 0)){
-            //selectUID();
+            selectUID();
         }
     }
 
@@ -505,7 +505,6 @@ namespace SSD_Components{
     // Else, return the null pointer.
     UID *Log_Update_Interval::getUID()
     {
-        selectUID();
         if(changeUIDTag){
             changeUIDTag = false;
             return currentUID;

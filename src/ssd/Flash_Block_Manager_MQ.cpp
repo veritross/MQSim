@@ -449,7 +449,7 @@ namespace SSD_Components{
         }
 
         if(!forRead){
-            //startGroupConfiguration();
+            startGroupConfiguration();
             if(!forGC){
                 lui->updateTable(lpa);
             }
