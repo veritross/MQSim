@@ -167,6 +167,9 @@ namespace SSD_Components{
 
     void Flash_Block_Manager_MQ::startGroupConfiguration()
     {
+        if(Simulator->loadMileStone != 0){
+            return;
+        }
         UID* uid = lui->getUID();
         if(uid == nullptr) return;
         std::queue<Block_Type*> freeBlockPool;

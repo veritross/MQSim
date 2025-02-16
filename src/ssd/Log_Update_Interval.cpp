@@ -9,9 +9,9 @@ namespace SSD_Components{
     const lui_timestamp CON::TIMESTAMP_NOT_ACCESSED = UINT64_MAX;
     const uint8_t CON::HOT_FILTER_BITS_COUNT = 2;
 
-    const lui_timestamp CON::UPDATE_INTERVAL_TABLE_SIZE = 176000;
+    const lui_timestamp CON::UPDATE_INTERVAL_TABLE_SIZE = 80000;
     // const uint64_t CON::UPDATE_INTERVAL_TABLE_SIZE = 1e4;
-    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 176000;
+    const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 80000;
     // const lui_timestamp CON::GROUP_CONFIGURE_EPOCH = 1e4;
 
     const double CON::NOTICIBLE_REDUCTION_CRITERIA = 0.005;
