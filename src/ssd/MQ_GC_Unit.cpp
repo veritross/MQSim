@@ -95,7 +95,6 @@ namespace SSD_Components{
 
                         while(relatedWrite->level > 0){
                             if(blockManager->Stop_servicing_writes(relatedWrite->level)){
-                                // if(blockManager->overGCThreshold(relatedWrite->level)){
                                 if(!_my_instance->gc_start(blockManager->queues.at(relatedWrite->level), blockManager->lui->getCurrentTimestamp())){
                                     _my_instance->ftl->Address_Mapping_Unit->moveWaitingWrites(relatedWrite->level, relatedWrite->level - 1);
                                     relatedWrite->level--;
@@ -104,12 +103,6 @@ namespace SSD_Components{
                                     _my_instance->ftl->Address_Mapping_Unit->manage_unsuccessful_transaction(relatedWrite, relatedWrite->level);
                                     break;
                                 }
-                                // } else if(_my_instance->ftl->BlockManager->isErasing(relatedWrite->level)){
-                                //     _my_instance->ftl->Address_Mapping_Unit->manage_unsuccessful_transaction(relatedWrite, relatedWrite->level);
-                                //     break;
-                                // } else{
-                                //     PRINT_ERROR("ERROR")
-                                // }
                             } else{
                                 _my_instance->ftl->Address_Mapping_Unit->allocate_page_for_write(relatedWrite);
                                 _my_instance->ftl->TSU->Prepare_for_transaction_submit();
@@ -119,7 +112,14 @@ namespace SSD_Components{
                             }
                         }
                         if(relatedWrite->level == 0){
-
+                            if(!blockManager->Stop_servicing_writes(relatedWrite->level)){
+                                _my_instance->ftl->Address_Mapping_Unit->allocate_page_for_write(relatedWrite);
+                                _my_instance->ftl->TSU->Prepare_for_transaction_submit();
+                                _my_instance->ftl->TSU->Submit_transaction(relatedWrite);
+                                _my_instance->ftl->TSU->Schedule();
+                            } else{
+                                _my_instance->ftl->Address_Mapping_Unit->manage_unsuccessful_transaction(relatedWrite, relatedWrite->level);
+                            }
                         }
                     } else {
                         PRINT_ERROR("Inconsistency found when moving a page for GC/WL!")
@@ -162,9 +162,16 @@ namespace SSD_Components{
     {
         auto blockItr = queue->blockList.begin();
 
-        while(blockItr != queue->blockList.end() && !isValidForVictimBlock(*blockItr)){
-            blockItr++;
+        while(blockItr != queue->blockList.end()){
+            if(isValidForVictimBlock(*blockItr)){
+                break;
+            }
         }
+
+        if(!isValidForVictimBlock(*blockItr)){
+            blockItr = queue->blockList.begin();
+        }
+
         return (*blockItr);
     }
     bool MQ_GC_Unit::gc_start(Block_Queue* prevQueue, lui_timestamp currentTimeStamp)
@@ -179,7 +186,7 @@ namespace SSD_Components{
             nextLevel++;
             victimBlock = selectVictimBlockFront(prevQueue);
         }
-        if(!isValidForVictimBlock(victimBlock)){
+        if(ftl->BlockManager->isLastQueue(prevLevel) && !isValidForVictimBlock(victimBlock)){
             return false;
         }
 
@@ -214,7 +221,7 @@ namespace SSD_Components{
     bool MQ_GC_Unit::isValidForVictimBlock(const Block_Type *block)
     {
 
-        return ((block->Ongoing_user_program_count == 0) && (block->status == MQ_Block_Status::WORKING) && (block->invalid_page_count != 0));
+        return ((block->status == MQ_Block_Status::WORKING) && (block->invalid_page_count != 0) && block->Ongoing_user_program_count == 0);
     }
 
     bool MQ_GC_Unit::GC_is_in_urgent_mode(NVM::FlashMemory::Flash_Chip *chip)

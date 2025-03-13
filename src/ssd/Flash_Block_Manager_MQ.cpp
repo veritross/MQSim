@@ -149,7 +149,7 @@ namespace SSD_Components{
         int totalBlockCount = queue->blockList.size();
         int freeBlockCount = totalBlockCount - (queue->currentBlockIdx + 1) + queue->currentErasingBlocksCount;
         if(totalBlockCount < 100){
-            return (freeBlockCount < 2);
+            return (freeBlockCount < 3);
         } else{
             return (freeBlockCount < (totalBlockCount / 100) + 2);
         }
@@ -162,95 +162,36 @@ namespace SSD_Components{
 
     bool Flash_Block_Manager_MQ::isErasing(level_type level)
     {
-        return (queues.at(level)->currentBlockIdx > 0);
+        return (queues.at(level)->currentErasingBlocksCount > 0);
     }
 
     void Flash_Block_Manager_MQ::startGroupConfiguration()
     {
-        if(Simulator->loadMileStone != 0){
-            return;
-        }
         UID* uid = lui->getUID();
         if(uid == nullptr) return;
-        std::queue<Block_Type*> freeBlockPool;
         std::queue<Block_Type*> blockPool;
 
         while(queues.size() < uid->groupConf.size()){
             createQueue();
         }
 
-        // // Pop the blocks from queues.
-        // for(uint32_t groupNumber = 0; groupNumber < queueCount; groupNumber++){
-        //     Block_Queue* currentQueue = queues.at(groupNumber);
-        //     int popCount = 0;
-        //     if(uid->groupConf.size() < groupNumber + 1){
-        //         popCount = currentQueue->blockList.size();
-        //     } else{
-        //         popCount = (currentQueue->blockList.size() - uid->groupConf.at(groupNumber));
-        //     }
-        //     while(popCount > 0){
-        //         Block_Type* blockToPop = currentQueue->blockList.back();
-
-        //         if(blockToPop->status == MQ_Block_Status::IDLE){
-        //             // If there is a block is not used, just pop.
-        //             freeBlockPool.push(blockToPop);
-        //             currentQueue->blockList.pop_back();
-        //         } else{
-        //             // Else, pop the head block.
-        //             blockPool.push(currentQueue->blockList.front());
-        //             currentQueue->blockList.erase(currentQueue->blockList.begin());
-        //         }
-        //         popCount--;
-        //     }
-        // }
-
-        // Block_Queue* lastQueue = queues.at(uid->groupConf.size() - 1);
-        // while(!lastQueue->blockList.empty()){
-        //     Block_Type* blockToPop = lastQueue->blockList.back();
-        //     if(blockToPop->status != MQ_Block_Status::IDLE){
-        //         blockPool.push(blockToPop);
-        //     } else{
-        //         freeBlockPool.push(blockToPop);
-        //     }
-        //     lastQueue->blockList.pop_back();
-        // }
-
-        // while(lastQueue->blockList.size() < uid->groupConf.back() && !freeBlockPool.empty()){
-        //     lastQueue->enqueueBlock(freeBlockPool.front());
-        //     freeBlockPool.pop();
-        // }
-
-        for(auto queue : queues){
-            auto blockItr = queue->blockList.begin();
-            while(blockItr != queue->blockList.end()){
-                if((*blockItr)->status == MQ_Block_Status::IDLE){
-                    freeBlockPool.push((*blockItr));
-                } else if(((*blockItr)->status == MQ_Block_Status::WORKING) && (*blockItr)->currentPageIdx == pagesPerBlock){
-                    blockPool.push((*blockItr));
-                } else{
-                    blockItr++;
-                    continue;
-                }
-                blockItr = queue->blockList.erase(blockItr);
-            }
-        }
-
         for(uint32_t popTargetQueueIdx = 0; popTargetQueueIdx < queues.size(); popTargetQueueIdx++){
             Block_Queue* popTargetQueue = queues.at(popTargetQueueIdx);
             int popCount = 0;
-            if(uid->groupConf.size() < popTargetQueueIdx){
+            if(uid->groupConf.size() > popTargetQueueIdx){
                 popCount = popTargetQueue->blockList.size() - uid->groupConf.at(popTargetQueueIdx);
             } else{
                 popCount = popTargetQueue->blockList.size();
             }
             while(popCount > 0){
                 Block_Type* popBlock = popTargetQueue->blockList.back();
-                popTargetQueue->blockList.pop_back();
-                if(popBlock->status == MQ_Block_Status::IDLE){
-                    freeBlockPool.push(popBlock);
+                if(popBlock->status != MQ_Block_Status::IDLE){
+                    popBlock = popTargetQueue->blockList.front();
+                    popTargetQueue->blockList.erase(popTargetQueue->blockList.begin());
                 } else{
-                    blockPool.push(popBlock);
+                    popTargetQueue->blockList.pop_back();
                 }
+                blockPool.push(popBlock);
                 popCount--;
             }
         }
@@ -261,17 +202,12 @@ namespace SSD_Components{
             int pushCount = uid->groupConf.at(pushTargetQueueIdx) - pushTargetQueue->blockList.size();
             while(pushCount > 0){
                 Block_Type* pushBlock;
-                if(!blockPool.empty()){
-                    pushBlock = blockPool.front(); blockPool.pop();
-                } else{
-                    pushBlock = freeBlockPool.front(); freeBlockPool.pop();
-                }
+                pushBlock = blockPool.front(); blockPool.pop();
                 if(pushBlock->status == MQ_Block_Status::WORKING){
                     if(pushBlock->prevQueue > pushTargetQueueIdx){
                         auto itr = pushTargetQueue->blockList.begin();
                         for(; itr != pushTargetQueue->blockList.end(); itr++){
                             if((*itr)->status != MQ_Block_Status::ERASING){
-                                itr++;
                                 break;
                             }
                         }
@@ -308,6 +244,8 @@ namespace SSD_Components{
                 ftl->Address_Mapping_Unit->Start_servicing_writes_for_level(groupNumber);
             }
         }
+
+        groupConfigured = true;
     }
 
     void Flash_Block_Manager_MQ::handleHotFilter(const LPA_type& lpa, const PPA_type& old_ppa, const bool forGC)
@@ -320,32 +258,25 @@ namespace SSD_Components{
 
     void Flash_Block_Manager_MQ::handleLUIBlockAge(Block_Type *block)
     {
-        // if(isLastQueue(block->prevQueue)){
-        //     lui->addBlockAge(block, Queue_Type::LAST_QUEUE);
-        // } else{
-        //     if(block->prevQueue == 0){
-        //         lui->addBlockAge(block, Queue_Type::HOT_QUEUE);
-        //     }
-        // }
-    }
+        Queue_Type type;
 
-    bool Flash_Block_Manager_MQ::isFilled(const level_type level)
-    {
-        for(uint32_t curLevel = level; curLevel < queueCount; curLevel++){
-            if(!Stop_servicing_writes(curLevel)){
-                return false;
+        if(isLastQueue(block->prevQueue)){
+            type = Queue_Type::LAST_QUEUE;
+        } else{
+            if(block->prevQueue == 0){
+                type = Queue_Type::HOT_QUEUE;
+            } else{
+                type = Queue_Type::NORMAL_QUEUE;
             }
         }
-        if(level == 0){
-            PRINT_ERROR("is filled")
-        }
-        return true;
+        lui->addBlockAge(block, type);
     }
 
     void Flash_Block_Manager_MQ::handleTrLevel(NVM_Transaction_Flash* tr)
     {
+        
         if(tr->level == UNDEFINED_LEVEL){
-            if(lui->isHot(tr->LPA)){
+            if(lui->isHot(tr->LPA) || !groupConfigured){
                 tr->level = 0;
             } else{
                 tr->level = 1;
@@ -377,7 +308,7 @@ namespace SSD_Components{
             }
         }
 
-        // In initialize, # of queues is 8.
+        // In initialize, # of queues is 4.
         // And all queues have same amount of blocks.
         queueCount = 4;
         for(uint32_t i = 0; i < queueCount; i++){
@@ -385,24 +316,12 @@ namespace SSD_Components{
         }
 
         uint32_t blockIdx = 0;
-        // uint32_t lastBlockCount = 10;
-        // uint32_t unLastBlocksCount = blocks.size() - lastBlockCount;
-        // for(int qIdx = 0; qIdx < queueCount - 1; qIdx++){
-        //     for(int i = 0; i < unLastBlocksCount / (queueCount - 1); i++, blockIdx++){
-        //         queues.at(qIdx)->enqueueBlock(blocks.at(blockIdx));
-        //     }
-        // }
-        // while(blockIdx < blocks.size()){
-        //     queues.back()->enqueueBlock(blocks.at(blockIdx++));
-        // }
 
         for(auto& queue : queues){
             for(uint32_t i = 0; i < blocks.size() / queueCount; i++, blockIdx++){
                 queue->enqueueBlock(blocks.at(blockIdx));
             }
         }
-
-
         std::vector<uint32_t> initialGroupConf;
 
         for(auto queue : queues){
@@ -410,6 +329,7 @@ namespace SSD_Components{
         }
 
         this->lui = new Log_Update_Interval(totalBlockCount, pagesPerBlock, initialGroupConf);
+        groupConfigured = false;
     }
 
     Flash_Block_Manager_MQ::~Flash_Block_Manager_MQ()
@@ -428,6 +348,7 @@ namespace SSD_Components{
         Block_Queue* queue = queues.at(level);
 
         Block_Type* block = queue->getCurrentBlock();
+
         if(block->status == MQ_Block_Status::IDLE){
             block->StartUsing(lui->getCurrentTimestamp(), streamID, false);
         }
@@ -446,8 +367,6 @@ namespace SSD_Components{
             }
             if(overGCThreshold(level)){
                 ftl->GC_and_WL_Unit->gc_start(queue, lui->getCurrentTimestamp());
-            } else{
-                block->StartUsing(lui->getCurrentTimestamp(), streamID, false);
             }
         }
 
@@ -475,17 +394,6 @@ namespace SSD_Components{
         this->queues.push_back(queue);
     }
 
-    void Flash_Block_Manager_MQ::removeLastQueue()
-    {
-        Block_Queue* lastQueue = queues.back();
-
-        if(lastQueue->blockList.size() != 0){
-            PRINT_ERROR("Remove Last Queue")
-        }
-
-        queues.pop_back();
-    }
-
     void Flash_Block_Manager_MQ::Read_transaction_issued(const PPA_type& ppa)
     {
         getBlock(ppa)->Ongoing_user_read_count++;
@@ -494,10 +402,11 @@ namespace SSD_Components{
     void Flash_Block_Manager_MQ::Read_transaction_serviced(const PPA_type &ppa)
     {
         Block_Type* block = getBlock(ppa);
-        if(block->Ongoing_user_read_count < 1){
-            PRINT_ERROR("Read transaction serviced")
+        if(block->Ongoing_user_read_count > 0){
+            block->Ongoing_user_read_count--;
+        } else{
+            PRINT_ERROR("Program transaction serviced")
         }
-        block->Ongoing_user_read_count--;
     }
 
     void Flash_Block_Manager_MQ::Program_transaction_serviced(const PPA_type &ppa)

@@ -7,6 +7,7 @@
 #include "Sim_Defs.h"
 #include "EventTree.h"
 #include "Sim_Object.h"
+#include "Log_Update_Interval.h"
 
 namespace MQSimEngine {
 	class Engine
@@ -38,8 +39,11 @@ namespace MQSimEngine {
 		bool Is_integrated_execution_mode();
 		void AttachClearStats(void(*ClearStats)());
 		void FinishLoadPhase(sim_time_type time, Sim_Object* io_flow);
+		void FinishCurrentPhase(sim_time_type time, Sim_Object* io_flow, bool in_lastPhase);
 
 		sim_time_type loadMileStone;
+		sim_time_type nextMilestone;
+		SSD_Components::Log_Update_Interval* lui;
 	private:
 		sim_time_type _sim_time;
 		EventTree* _EventList;
@@ -49,8 +53,12 @@ namespace MQSimEngine {
 		static Engine* _instance;
 
 		std::vector<std::pair<sim_time_type, Sim_Object*>> waitingRunPhaseFlowList;
+		std::vector<std::pair<sim_time_type, Sim_Object*>> waitingNextPhaseFlowList;
 		bool waitingLoadPhaseFinish;
+		bool waitingNextPhaseFinish;
+		bool lastPhase;
 		void StartRunPhase();
+		void StartNextPhase();
 		void(*ClearStats)();
 	};
 }

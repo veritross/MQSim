@@ -183,6 +183,7 @@ void IO_Flow_Trace_Based::Execute_simulator_event(MQSimEngine::Sim_Event *)
 
 	if (STAT_generated_request_count < total_requests_to_be_generated)
 	{
+		
 		std::ifstream* curTraceFile;
 		if(loadPhase){
 			curTraceFile = &load_trace_file;
@@ -222,6 +223,8 @@ void IO_Flow_Trace_Based::Execute_simulator_event(MQSimEngine::Sim_Event *)
 				current_trace_line.clear();
 				Utils::Helper_Functions::Tokenize(trace_line, ASCIILineDelimiter, current_trace_line);
 				PRINT_MESSAGE("* Replay round " << replay_counter << " of " << total_replay_no << " started  for " << ID())
+				Simulator->FinishCurrentPhase(std::strtoll(current_trace_line[ASCIITraceTimeColumn].c_str(), &pEnd, 10), this, replay_counter == (total_replay_no - 1));
+				return;
 			}
 		}
 		char *pEnd;

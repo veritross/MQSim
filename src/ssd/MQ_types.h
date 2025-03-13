@@ -9,6 +9,7 @@
 #define UNDEFINED_LEVEL UINT32_MAX
 
 enum class Queue_Type{
+    NORMAL_QUEUE = 0,
     HOT_QUEUE = 1,
     LAST_QUEUE = 2,
 };

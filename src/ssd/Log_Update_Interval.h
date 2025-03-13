@@ -30,9 +30,6 @@ namespace SSD_Components
 		const static uint8_t NOT_NOTICIBLE_REDUCTION_THRESHOLD;
 		const static double NOTICIBLE_REDUCTION_CRITERIA;
 		const static double UID_SELECTION_THRESHOLD;
-
-		const static uint32_t LIMITATION_GROUP_CONF;
-
 	};
 
 	struct HotFilter{
@@ -46,19 +43,13 @@ namespace SSD_Components
 		void setFilter(const LPA_type lpa, const uint8_t newBit);
 	};
 
-	class UIDS{
-	public:
-		std::map<uint64_t, uint64_t>::const_iterator lastItr;
-		double sumOfP;
-		double WAF;
-	};
-
 	class UID{
 	private:
 		//key. group count.
 		//value. group size.
-		double MarkovChain(const std::vector<std::pair<double, double>>& transitionProb, double hotTrafficRatio);
-		UIDS* split(const std::map<uint64_t, uint64_t> &intervalCountTable, std::vector<std::pair<double, double>>& transitionProb, const UIDS* lastUIDS, uint32_t totalReqs, double hotTrafficRatio, bool isHot);
+
+		double MarkovChain(const std::vector<double>& p, const double uninvalidatedRatio, double lastGroupWAF);
+		double getLastGroupWAF(const std::map<uint64_t, uint64_t>& intervalCountTable, uint32_t pagesPerBlock, std::map<uint64_t, uint64_t>::const_iterator& lastGroupItr);
 	public:
 		UID();
 
@@ -66,8 +57,8 @@ namespace SSD_Components
 		UID(const std::vector<uint32_t>& groupConf);
 
 		std::vector<uint32_t> groupConf;
-		double createUID(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock);
-		double getWAF(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs);
+		double createUID(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs, uint32_t totalBlocksCount, uint32_t pagesPerBlock, double avgBlocksResTime);
+		double getWAF(const std::map<uint64_t, uint64_t>& intervalCountTable, uint64_t totalReqs, double avgBlocksResTime, uint32_t pagesPerBlock);
 	};
 
 
@@ -79,43 +70,43 @@ namespace SSD_Components
 		
 		lui_timestamp requestCountInCurrentInterval;
 		lui_timestamp currentTimestamp;
+		
+		uint64_t totalErasedBlocksCount;
+		uint64_t totalErasedBlocksResidentTime;
 
-		uint64_t totalHotBlocksAge;
-		uint64_t totalErasedHotBlocksCount;
-		uint64_t totalHotBlocksValidPages;
-		uint64_t totalErasedLastBlocksCount;
-		uint64_t totalErasedLastBlocksValidPagesCount;
-
-		//TODO. clear hot filter.
-		HotFilter* hotFilter;
-
+		
 		//keeps track of the number of pages for specific update intervals.
 		// Sampling rate is 0.01(one in every 100 blocks)
 		std::map<uint64_t, uint64_t> updateIntervalTable;
+		uint64_t sumOfUpdateIntervalTable;
+		uint64_t totalHotReqs;
+		uint64_t totalReqs;
 
 		//records timestamps of page updates to compute the update intervals of data pages.
 		std::map<uint64_t, lui_timestamp> timestampTable;
-
+		
 		void scheduleCurrentTimestamp();
 		void setTables(const LPA_type lba);
-
+		
 		UID* currentUID;
 		bool changeUIDTag;
-		void selectUID();
-
-	public:
+		
+		public:
 		Log_Update_Interval(uint64_t totalBlocksCount, uint32_t pagesPerBlock, const std::vector<uint32_t>& initialGroupConf);
         ~Log_Update_Interval();
-
+		
+		HotFilter* hotFilter;
         bool isHot(const LPA_type lba);
 		void updateHotFilter(const LPA_type lba, const lui_timestamp blkAge, const level_type level, const bool forGC);
 		void updateTable(const LPA_type lba);
 		void addBlockAge(const Block_Type* block, const Queue_Type queueType);
-
+		
+		void selectUID();
 		void clearTable();
 
 		UID* getUID();
 		lui_timestamp getCurrentTimestamp();
+
 	};
 }
 

@@ -103,9 +103,6 @@ namespace SSD_Components
         void handleHotFilter(const LPA_type& lpa, const PPA_type& old_ppa, const bool forGC);
 
         void handleLUIBlockAge(Block_Type* block);
-
-        bool isFilled(const level_type level);
-
         void handleTrLevel(NVM_Transaction_Flash* tr);
     private:
         uint32_t queueCount;
@@ -114,10 +111,10 @@ namespace SSD_Components
         uint32_t pagesPerBlock;
         std::vector<Block_Queue*> queues;
         std::vector<Block_Type*> blocks;
+        bool groupConfigured;
 
 	    void Program_transaction_issued(Block_Type* block);
         void createQueue();
-        void removeLastQueue();
 	};
 }
 

@@ -1,6 +1,7 @@
 #include <stdexcept>
 #include "Engine.h"
 #include "../utils/Logical_Address_Partitioning_Unit.h"
+#include "Log_Update_Interval.h"
 
 namespace MQSimEngine
 {
@@ -23,6 +24,10 @@ namespace MQSimEngine
 		stop = false;
 		started = false;
 		Utils::Logical_Address_Partitioning_Unit::Reset();
+		waitingLoadPhaseFinish = false;
+		waitingNextPhaseFinish = false;
+		loadMileStone = 0;
+		lastPhase = false;
 	}
 
 
@@ -84,6 +89,8 @@ namespace MQSimEngine
 			if (_EventList->Count == 0 || stop) {
 				if(waitingLoadPhaseFinish){
 					StartRunPhase();
+				} else if(waitingNextPhaseFinish){
+					StartNextPhase();
 				} else{
 					break;
 				}
@@ -149,15 +156,43 @@ namespace MQSimEngine
         this->waitingRunPhaseFlowList.push_back({time, io_flow});
 		waitingLoadPhaseFinish = true;
     }
+    void Engine::FinishCurrentPhase(sim_time_type time, Sim_Object *io_flow, bool in_lastPhase)
+    {
+		this->waitingNextPhaseFlowList.push_back({time, io_flow});
+		waitingNextPhaseFinish = true;
+		lastPhase = in_lastPhase;
+    }
     void Engine::StartRunPhase()
     {
 		waitingLoadPhaseFinish = false;
 		loadMileStone = CurrentTimeStamp;
 		ClearStats();
+		lui->clearTable();
+		lui->hotFilter->clearFilter();
 		for(auto io_flow : waitingRunPhaseFlowList){
 			this->Register_sim_event(loadMileStone + io_flow.first, io_flow.second);
 		}
 
 		PRINT_MESSAGE("Start Run Phase....")
+    }
+    void Engine::StartNextPhase()
+    {
+		waitingNextPhaseFinish = false;
+		loadMileStone = CurrentTimeStamp;
+		ClearStats();
+
+		if(lastPhase){
+			lastPhase = false;
+			lui->selectUID();
+		} else{
+			lui->clearTable();
+			lui->hotFilter->clearFilter();
+		}
+		
+		for(auto io_flow : waitingNextPhaseFlowList){
+			this->Register_sim_event(loadMileStone + io_flow.first, io_flow.second);
+		}
+
+		PRINT_MESSAGE("Start next Phase...")
     }
 }

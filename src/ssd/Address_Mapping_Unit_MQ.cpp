@@ -97,13 +97,13 @@ namespace SSD_Components{
     Address_Mapping_Unit_MQ::~Address_Mapping_Unit_MQ()
     {
         for (unsigned int i = 0; i < no_of_input_streams; i++) {
-        if (domains[i]) {
-            delete domains[i];
-            domains[i] = nullptr;
-        }
-    }
-    delete[] domains;
-    domains = nullptr;
+			if (domains[i]) {
+				delete domains[i];
+				domains[i] = nullptr;
+			}
+		}
+		delete[] domains;
+		domains = nullptr;
     }
 
     void Address_Mapping_Unit_MQ::Setup_triggers()
@@ -356,6 +356,7 @@ namespace SSD_Components{
 		}
     }
 
+	// When the LPA of transaction is set as a victim of gc.
     void Address_Mapping_Unit_MQ::insertUserTrBarrierQueue(NVM_Transaction_Flash *transaction)
     {
 		std::pair<LPA_type, NVM_Transaction_Flash*> entry(transaction->LPA, transaction);
@@ -406,7 +407,6 @@ namespace SSD_Components{
 				Stats::writeTR_CMT_hits++;
 				Stats::writeTR_CMT_hits_per_stream[stream_id]++;
 			}
-
 			if (translate_lpa_to_ppa(stream_id, tr)) {
 				return true;
 			} else {
@@ -414,7 +414,6 @@ namespace SSD_Components{
 				return false;
 			}
 		} else {//Limited CMT
-
 			PRINT_ERROR("MAPPING HAS NOT BEEN IMPLEMENTED")
 			//Maybe we can catch mapping data from an on-the-fly write back request
 			if (request_mapping_entry(stream_id, tr->LPA)) {
@@ -459,10 +458,9 @@ namespace SSD_Components{
     bool Address_Mapping_Unit_MQ::translate_lpa_to_ppa(stream_id_type streamID, NVM_Transaction_Flash *transaction)
     {
 		PPA_type ppa = domains[streamID]->Get_ppa(ideal_mapping_table, streamID, transaction->LPA);
-
 		if (transaction->Type == Transaction_Type::READ) {
 			if(transaction->level == UNDEFINED_LEVEL){
-				transaction->level = 1;
+				block_manager->handleTrLevel(transaction);
 			}
 			if (ppa == NO_PPA) {
 				ppa = online_create_entry_for_reads((NVM_Transaction_Flash_RD*)transaction);
@@ -534,8 +532,8 @@ namespace SSD_Components{
 					tr->RelatedRead = update_read_tr;
 					Stats::unramWrite++;
 				}
-				block_manager->handleHotFilter(tr->LPA, old_ppa, forGC);
 			}
+			block_manager->handleHotFilter(tr->LPA, old_ppa, forGC);
 		}
 
 		block_manager->Allocate_page(tr->Stream_id, tr->Address, tr->LPA, tr->level, forGC, false);
